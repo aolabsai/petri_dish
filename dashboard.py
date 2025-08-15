@@ -127,9 +127,8 @@ if selected_agents:
     color_scale = alt.Scale(domain=list(agent_colors.keys()), range=list(agent_colors.values()))
 
     # Grid world views row (collapsible)
-    grid_col1, grid_col2, grid_col3, grid_col4 = st.columns(4)
-
     with st.expander("Grid World Views", expanded=True):
+        grid_col1, grid_col2, grid_col3, grid_col4 = st.columns(4)
 
         with grid_col1:
             st.subheader("Layer 1: Red Stimuli")
