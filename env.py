@@ -433,6 +433,25 @@ class Assay:
             plt.close(fig)
             raise ValueError("Invalid mode specified. Choose 'window' or 'inline'.")
 
+    # Function to generate dummy data for demonstration
+    def export_dummy_data(time_steps=100):
+        time = np.arange(time_steps)
+        # Response to stimuli: random walk-like data
+        response = np.random.randn(time_steps).cumsum()
+        # Neuronal response: AO/Projects/petri_dish/dashboard.pysimulated neuron activations
+        neuronal = np.sin(time / 10) + np.random.normal(0, 0.5, time_steps)
+        # Learning events: sparse events (e.g., 1 when learning occurs)
+        learning = np.random.choice([0, 1], size=time_steps, p=[0.9, 0.1])
+        # Experience states: states in grid (e.g., position or state value)
+        states = np.random.randint(0, 10, time_steps)  # Assume 10 states
+        return pd.DataFrame({
+            'Time': time,
+            'Response to Stimuli': response,
+            'Neuronal Response': neuronal,
+            'Learning Events': learning,
+            'Experience States': states
+        })
+
 
 # # below maintained for testing
 
