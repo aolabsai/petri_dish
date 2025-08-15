@@ -12,6 +12,9 @@ from matplotlib.colors import ListedColormap
 from matplotlib.animation import FuncAnimation
 from IPython.display import HTML, display
 
+import ao_core as ao
+
+
 class PetriDish:
     def __init__(self, size=100, num_layers=3, distributions=None):
         """
@@ -50,7 +53,7 @@ class PetriDish:
         y = np.linspace(0, 1, size)
         self.X, self.Y = np.meshgrid(x, y)
         self.layers = []
-        for d in distributions:
+        for d in distributions[0:num_layers]:
             p_grid = self._get_p_grid(d)
             grid = np.random.binomial(1, p_grid).astype(int)
             self.layers.append(grid)
@@ -85,16 +88,20 @@ class PetriDish:
 
     def _get_p_grid(self, dist):
         t = dist['type']
-        min_p = dist.get('min_p', 0.0)
+        min_p = dist.get('min_p', 0.0) # not sure why there is a ,0 and ,1 here in min and max_p
         max_p = dist.get('max_p', 1.0)
         if t == 'linear':
             direction = dist.get('direction')
-            if direction == 'horizontal':
+            if direction == 'horizontal-rightleft':
                 return min_p + (max_p - min_p) * self.X
-            elif direction == 'vertical':
+            if direction == 'horizontal-leftright':
+                return max_p - (max_p - min_p) * self.X
+            if direction == 'vertical-downup':
                 return min_p + (max_p - min_p) * self.Y
+            elif direction == 'vertical-updown':
+                return max_p - (max_p - min_p) * self.Y
             else:
-                raise ValueError("Direction must be 'horizontal' or 'vertical'")
+                raise ValueError("Direction must be 'horizontal-rightleft' / 'horizontal-leftright'  or 'vertical-downup' / 'vertical-updown'")
         elif t == 'radial':
             cx, cy = self._get_position(dist)
             dist_grid = np.sqrt((self.X - cx)**2 + (self.Y - cy)**2)
@@ -236,16 +243,48 @@ class Assay:
     """
     Manages and runs experiments with multiple agents on a PetriDish.
     """
-    ACTIONS = ['move_forward', 'turn_right', 'turn_left']
-    HEADINGS = {0: (-1, 0), 1: (0, 1), 2: (1, 0), 3: (0, -1)} # N, E, S, W in (y,x)
-
-    def __init__(self, petri_dish, num_agents=5, start_logic='random', start_positions=None):
+    def __init__(self, petri_dish, num_agents=5, start_logic='random', start_positions=None, agent_archs="unit clam"):
         self.dish = petri_dish
         self.agents = []
         self.history = []
-        self._initialize_agents(num_agents, start_logic, start_positions)
+        self._initialize_agents(num_agents, start_logic, start_positions, agent_archs)
 
-    def _initialize_agents(self, num_agents, start_logic, start_positions):
+        # xx, yy = np.indices((self.dish.size, self.dish.size))
+        # self.layers_proprioceptive = np.copy(self.dish.layers)
+        
+        # for x in np.nditer(xx):
+        #     for y in np.nditer(yy):
+        #         self.layers_proprioceptive[:, x, y] = self.dish.get_stimuli((x, y), radius=self.sensory_radius, shape=self.sensory_shape, mode=self.sensory_mode)
+                
+    ACTIONS = ['move_forward', 'turn_right', 'turn_left']
+    HEADINGS = {0: (-1, 0), 1: (0, 1), 2: (1, 0), 3: (0, -1)} # N, E, S, W in (y,x)
+
+    random = True # set to False to use AO agents
+    INSTINCTS = False # set to True to trigger instinctual learning in AO agents
+    sensory_binary_neurons = 10
+    sensory_radius = 3
+    sensory_shape = "circle"
+    sensory_mode = "count"
+
+
+    # def visualize_proprioceptive(self, combined_only=False):
+    #     """
+    #     Visualize the petri dish layers from the perspective of an agent, given the same parameters set for the assay. Helpful to visualize the fairness of the env for the learning agent.
+        
+    #     """
+    #     colors = [colorsys.hsv_to_rgb(i / self.dish.num_layers, 1, 1) for i in range(self.dish.num_layers)]
+        
+    #     fig, axs = plt.subplots(1, self.dish.num_layers, figsize=(4 * (self.dish.num_layers), 4))
+    #     for i in range(self.dish.num_layers):
+    #         layer_cmap = ListedColormap([[1, 1, 1], colors[i]])
+    #         axs[i].imshow(self.layers_proprioceptive[i], cmap=layer_cmap)
+    #         axs[i].set_title(f'Layer - Proprioceptive (Agent) View{i}')
+    #         axs[i].axis('off')
+                
+    #     plt.tight_layout()
+    #     plt.show()
+
+    def _initialize_agents(self, num_agents, start_logic, start_positions, agent_archs):
         if start_positions:
             positions = start_positions
         else:
@@ -266,13 +305,41 @@ class Assay:
             if not (0 <= pos[0] < self.dish.size and 0 <= pos[1] < self.dish.size):
                 raise ValueError(f"Start position {pos} is out of bounds.")
             self.agents.append({
-                'id': i, 'pos': pos, 'heading': np.random.randint(0, 4)
+                'id': i, 'pos': pos, 'heading': np.random.randint(0, 4),
+                'agent': ao.Agent._unit() if agent_archs == "unit clam" else ao.Agent(agent_archs)
             })
         self.history.append([agent['pos'] for agent in self.agents])
         
     def _get_agent_action(self, agent):
-        """Placeholder for getting an action from an agent module."""
-        return np.random.choice(self.ACTIONS)
+        if self.random:
+            agent_action = np.random.choice(self.ACTIONS)
+        else: # run AO Agent
+            agent_input = self.dish.get_stimuli(agent['pos'], radius=self.sensory_radius, shape=self.sensory_shape, mode=self.sensory_mode)
+            agent_input_binary = np.asarray([])
+            for i in agent_input:
+                ib = np.zeros(self.sensory_binary_neurons)
+                overage = i - self.sensory_binary_neurons
+                if overage < 0:
+                    i = i - overage
+                ib[0:i] = 1
+                agent_input_binary = np.append(agent_input_binary, ib)
+    
+            agent_action_binary = agent['agent'].next_state(agent_input_binary, INSTINCTS=self.INSTINCTS)
+            
+            if agent_action_binary == [1]:
+                agent_action = self.ACTIONS[0] # move forward
+            else: # if [0]
+                agent_action = np.random.choice(self.ACTIONS[1:]) # turn right or left randomly
+            
+        return agent_action
+
+    def set_agent_hyperparameters(self, C_impression_initial = 10, C_impression_match = 1, C_pruning = 1, C_pruning_cutoff = 5):
+        for agent in self.agents:
+            a = agent['agent']
+            a.C_impression_initial = C_impression_initial # strength of impression when first added to C_info
+            a.C_impression_match   = C_impression_match  # increment of impression in C_info if accessed
+            a.C_pruning            = C_pruning # decrement of impression in C_info if not accessed
+            a.C_pruning_cutoff     = C_pruning_cutoff # value below which impressions are pruned from C_info
 
     def run_step(self):
         """Runs a single step of the experiment for all agents."""
@@ -367,74 +434,74 @@ class Assay:
             raise ValueError("Invalid mode specified. Choose 'window' or 'inline'.")
 
 
+# # below maintained for testing
+
+# # --- DEMONSTRATION OF PETRI DISH CLASS ---
+
+# # Create a Petri dish instance
+# dish = PetriDish(size=50, num_layers=3)
+# dish.visualize()
+
+# # Example with custom position
+# custom_dist = [
+#     {'type': 'radial', 'position': 'random', 'min_p': 0.0, 'max_p': 0.5},
+#     {'type': 'radial', 'position': 'top-left', 'min_p': 0.0, 'max_p': 0.5},
+#     {'type': 'radial', 'position': (0.25, 0.75), 'min_p': 0.0, 'max_p': 0.5}
+# ]
+# custom_dish = PetriDish(size=50, num_layers=3, distributions=custom_dist)
+# custom_dish.visualize()
+
+# coords_to_check = (25, 25)
+# print(f"--- Checking stimuli at coordinate {coords_to_check} ---\n")
+
+# # 1. Original behavior: get value at the exact coordinate
+# stimuli_at_point = dish.get_stimuli(coords_to_check)
+# print(f"1. Exact stimuli at point: {stimuli_at_point}\n")
+
+# # 2. Uniform concentration within a circular area
+# concentration_uniform = dish.get_stimuli(coords_to_check, radius=10, shape='circle', weighting='uniform')
+# print(f"2. Uniform concentration (circle, r=10): {concentration_uniform}\n")
+
+# # 3. Uniform concentration within a square area
+# concentration_square = dish.get_stimuli(coords_to_check, radius=10, shape='square', weighting='uniform')
+# print(f"3. Uniform concentration (square, r=10): {concentration_square}\n")
+
+# # 4. Linear distance-weighted concentration
+# concentration_linear = dish.get_stimuli(coords_to_check, radius=10, weighting='linear')
+# print(f"4. Linear weighted concentration (r=10): {concentration_linear}\n")
+
+# # 5. Gaussian distance-weighted concentration
+# concentration_gaussian = dish.get_stimuli(coords_to_check, radius=10, weighting='gaussian')
+# print(f"5. Gaussian weighted concentration (r=10): {concentration_gaussian}\n")
+
+# # 6. Gaussian concentration with a smaller sigma (weights fall off faster)
+# concentration_gaussian_tight = dish.get_stimuli(coords_to_check, radius=10, weighting='gaussian', sigma=2)
+# print(f"6. Gaussian weighted concentration (r=10, sigma=2): {concentration_gaussian_tight}\n")
+
+# # 7. COUNT mode
+# count_circle = dish.get_stimuli(coords_to_check, radius=10, shape='circle', mode='count')
+# print(f"7.1. Stimuli COUNT (circle, r=10): {count_circle}\n")
+# count_square = dish.get_stimuli(coords_to_check, radius=10, shape='square', mode='count')
+# print(f"7.2. Stimuli COUNT (square, r=10): {count_square}\n")
 
 
-# --- DEMONSTRATION OF PETRI DISH CLASS ---
 
-# Create a Petri dish instance
-dish = PetriDish(size=50, num_layers=3)
-dish.visualize()
+# # --- DEMONSTRATION OF ASSAY CLASS ---
 
-# Example with custom position
-custom_dist = [
-    {'type': 'radial', 'position': 'random', 'min_p': 0.0, 'max_p': 0.5},
-    {'type': 'radial', 'position': 'top-left', 'min_p': 0.0, 'max_p': 0.5},
-    {'type': 'radial', 'position': (0.25, 0.75), 'min_p': 0.0, 'max_p': 0.5}
-]
-custom_dish = PetriDish(size=50, num_layers=3, distributions=custom_dist)
-custom_dish.visualize()
+# # 1. Initialize an Assay with 5 agents starting randomly
+# assay = Assay(petri_dish=dish, num_agents=5, start_logic='random')
 
-coords_to_check = (25, 25)
-print(f"--- Checking stimuli at coordinate {coords_to_check} ---\n")
+# # 2. Visualize the initial state
+# print("Visualizing the initial state of the assay...")
+# assay.visualize()
 
-# 1. Original behavior: get value at the exact coordinate
-stimuli_at_point = dish.get_stimuli(coords_to_check)
-print(f"1. Exact stimuli at point: {stimuli_at_point}\n")
+# # 3. Run the simulation for 50 steps
+# num_steps = 50
+# print(f"\nRunning the assay for {num_steps} steps...")
+# for step in range(num_steps):
+#     assay.run_step()
+# print("...Done.")
 
-# 2. Uniform concentration within a circular area
-concentration_uniform = dish.get_stimuli(coords_to_check, radius=10, shape='circle', weighting='uniform')
-print(f"2. Uniform concentration (circle, r=10): {concentration_uniform}\n")
-
-# 3. Uniform concentration within a square area
-concentration_square = dish.get_stimuli(coords_to_check, radius=10, shape='square', weighting='uniform')
-print(f"3. Uniform concentration (square, r=10): {concentration_square}\n")
-
-# 4. Linear distance-weighted concentration
-concentration_linear = dish.get_stimuli(coords_to_check, radius=10, weighting='linear')
-print(f"4. Linear weighted concentration (r=10): {concentration_linear}\n")
-
-# 5. Gaussian distance-weighted concentration
-concentration_gaussian = dish.get_stimuli(coords_to_check, radius=10, weighting='gaussian')
-print(f"5. Gaussian weighted concentration (r=10): {concentration_gaussian}\n")
-
-# 6. Gaussian concentration with a smaller sigma (weights fall off faster)
-concentration_gaussian_tight = dish.get_stimuli(coords_to_check, radius=10, weighting='gaussian', sigma=2)
-print(f"6. Gaussian weighted concentration (r=10, sigma=2): {concentration_gaussian_tight}\n")
-
-# 7. COUNT mode
-count_circle = dish.get_stimuli(coords_to_check, radius=10, shape='circle', mode='count')
-print(f"7.1. Stimuli COUNT (circle, r=10): {count_circle}\n")
-count_square = dish.get_stimuli(coords_to_check, radius=10, shape='square', mode='count')
-print(f"7.2. Stimuli COUNT (square, r=10): {count_square}\n")
-
-
-
-# --- DEMONSTRATION OF ASSAY CLASS ---
-
-# 1. Initialize an Assay with 5 agents starting randomly
-assay = Assay(petri_dish=dish, num_agents=5, start_logic='random')
-
-# 2. Visualize the initial state
-print("Visualizing the initial state of the assay...")
-assay.visualize()
-
-# 3. Run the simulation for 50 steps
-num_steps = 50
-print(f"\nRunning the assay for {num_steps} steps...")
-for step in range(num_steps):
-    assay.run_step()
-print("...Done.")
-
-# 4. Visualize the final state and agent paths
-print("\nVisualizing the final state with agent paths...")
-assay.visualize(show_paths=True)
+# # 4. Visualize the final state and agent paths
+# print("\nVisualizing the final state with agent paths...")
+# assay.visualize(show_paths=True)
