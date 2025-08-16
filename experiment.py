@@ -6,7 +6,7 @@ from env import PetriDish, Assay
 
 
 env_size = 50
-env_input_layers = 1
+env_input_layers = 3
 
 # Create a Petri dish instance
 
@@ -29,7 +29,7 @@ arch = ao.Arch(
 
 def c0_instinct_rule(INPUT, Agent):
     
-    input_pleasure_threshold = 4 # this number should be close to assay.sensory_binary_neurons and assay.sensory_radius
+    input_pleasure_threshold = 9 # this number should be close to assay.sensory_binary_neurons and assay.sensory_radius
 
     if sum(INPUT[0:input_channel_size]) >= input_pleasure_threshold:
         instinct_response = [1, "c0 pleasure instinct"]
@@ -73,3 +73,4 @@ assay.visualize(show_paths=True)
 dish.get_stimuli((7,7), radius=1, shape='square', mode='count')
 
 
+assay.export_data()
