@@ -596,8 +596,8 @@ class Assay:
             
             # For AO agents, store meta history
             agent_instance = agent_dict['agent']
-            self.meta_history[self.step, i, 0] = agent_instance.astate[0, agent_instance.arch.I__flat]
-            self.meta_history[self.step, i, 1] = agent_instance.astate[0, agent_instance.arch.Q__flat]
+            self.meta_history[self.step, i, 0] = sum(agent_instance.astate[0, agent_instance.arch.I__flat])
+            self.meta_history[self.step, i, 1] = sum(agent_instance.astate[0, agent_instance.arch.Q__flat])
             self.meta_history[self.step, i, 2] = agent_instance.activations_global_C
             try: self.meta_history[self.step, i, 3] = agent_instance.neurons[agent_instance.arch.Z__flat[0]].outputs.size
             except: AttributeError 
@@ -661,7 +661,6 @@ class Assay:
             plt.close(fig)
             raise ValueError("Invalid mode specified. Choose 'window' or 'inline'.")
 
-    # --- COMPLETELY REVISED FUNCTION ---
     def export_data(self, to_step=None, file_name="assay_data.pkl", env_file_name="gridworld.pkl"):
         import pickle
         import pandas as pd
@@ -670,29 +669,27 @@ class Assay:
             to_step = self.step + 1 # Include the latest step
         
         all_dfs = []
-        # FIXED: Correct variable name from self.num_of_agents to self.num_agents
         for a_idx in range(self.num_agents):
-            # FIXED: Slice the history arrays from the beginning (0) up to 'to_step'
-            # This creates arrays of the correct length for the DataFrame
             df = pd.DataFrame({
                 'Time': np.arange(to_step),
                 'Response to Stimuli': self.meta_history[:to_step, a_idx, 0],
                 'Neuronal Response':   self.meta_history[:to_step, a_idx, 1],
                 'Learning Events':     self.meta_history[:to_step, a_idx, 2],
                 'Experience States':   self.meta_history[:to_step, a_idx, 3],
-                # FIXED: Correctly slice the 3D history array for x and y positions
                 'pos_x': self.history[:to_step, a_idx, 0],
                 'pos_y': self.history[:to_step, a_idx, 1],
                 'Agent': f"Agent_{a_idx}" # Add an agent identifier
             })
             all_dfs.append(df)
         
-        # Combine all agent DataFrames into a single one
-        final_df = [ pd.concat(all_dfs, ignore_index=True), self.dish.layers ]
+        # Combine all agent DataFrames into a single one, and save the env layers, all in a list for easy exporting
+        final_data = [ pd.concat(all_dfs, ignore_index=True), self.dish.layers ]
 
         try:
             with open(file_name, "wb") as f:
-                pickle.dump(final_df, f)
+                pickle.dump(final_data, f)
             print(f"DataFrame successfully saved to {file_name}")
         except Exception as e:
             print(f"An error occurred while saving the file: {e}")
+
+        return final_data

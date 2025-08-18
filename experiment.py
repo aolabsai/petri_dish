@@ -12,8 +12,8 @@ env_input_layers = 3
 
 stimuli_dist = [
     {'type': 'linear', 'direction': 'vertical-updown', 'min_p': 0, 'max_p': 1},
-    {'type': 'radial', 'position': 'top-left', 'min_p': 1, 'max_p': 1},
-    {'type': 'radial', 'position': (0.25, 0.75), 'min_p': 1, 'max_p': 1}
+    {'type': 'radial', 'position': 'top-left', 'min_p': 0, 'max_p': 0.1},
+    {'type': 'radial', 'position': 'center', 'min_p': 0, 'max_p': .3}
 ]
 dish = PetriDish(size=env_size, num_layers=env_input_layers, distributions=stimuli_dist)
 dish.visualize()
@@ -29,7 +29,7 @@ arch = ao.Arch(
 
 def c0_instinct_rule(INPUT, Agent):
     
-    input_pleasure_threshold = 9 # this number should be close to assay.sensory_binary_neurons and assay.sensory_radius
+    input_pleasure_threshold = 3 # this number should be close to assay.sensory_binary_neurons and assay.sensory_radius
 
     if sum(INPUT[0:input_channel_size]) >= input_pleasure_threshold:
         instinct_response = [1, "c0 pleasure instinct"]
@@ -72,5 +72,4 @@ assay.visualize(show_paths=True)
 
 dish.get_stimuli((7,7), radius=1, shape='square', mode='count')
 
-
-assay.export_data()
+all_data = assay.export_data() # resultant .pkl pickle file to be uploaded to the streamlit dashboard.py
