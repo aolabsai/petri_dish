@@ -347,7 +347,6 @@ class Assay:
             self.step -= 1
             return
 
-        # FIXED: Use enumerate for a cleaner loop
         for i, agent_dict in enumerate(self.agents):
             action = self._get_agent_action(agent_dict)
             x, y = agent_dict['pos']
@@ -392,7 +391,6 @@ class Assay:
             return
 
         full_agent_colors = plt.cm.jet(np.linspace(0, 1, self.num_agents))
-        # FIXED: Select agents correctly from the 3D history array
         paths_to_show = self.history[:self.step + 1, agent_ids, :]
         
         path_lines = [ax.plot([], [], color=full_agent_colors[i], linewidth=1.5, alpha=0.7)[0] for i in agent_ids]
