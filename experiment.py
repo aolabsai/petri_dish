@@ -11,9 +11,9 @@ env_input_layers = 3
 # Create a Petri dish instance
 
 stimuli_dist = [
-    {'type': 'linear', 'direction': 'vertical-updown', 'min_p': 0, 'max_p': 1},
-    {'type': 'radial', 'position': 'top-left', 'min_p': 0, 'max_p': 0.1},
-    {'type': 'radial', 'position': 'center', 'min_p': 0, 'max_p': .3}
+    {'type': 'linear', 'direction': 'horizontal-rightleft', 'min_p': 0, 'max_p': 1},
+    {'type': 'linear', 'direction': 'horizontal-rightleft', 'min_p': 0, 'max_p': 1},
+    {'type': 'linear', 'direction': 'horizontal-leftright', 'min_p': 0, 'max_p': 1}
 ]
 dish = PetriDish(size=env_size, num_layers=env_input_layers, distributions=stimuli_dist)
 dish.visualize()
@@ -39,6 +39,9 @@ def c0_instinct_rule(INPUT, Agent):
 arch.datamatrix[4, arch.C[1][0]] = c0_instinct_rule # Saving the function to the Arch so the Agent can access it
 
 assay = Assay(petri_dish=dish, num_agents=10, start_logic='random', agent_archs=arch)
+# load an Assay with agents from a previous Assay (moving worms from one petri dish to another)
+# assay = Assay(petri_dish=dish, num_agents=10, start_logic='random', agent_archs=arch, assay_loadagents=assay)
+
 assay.INSTINCTS = False
 assay.set_agent_hyperparameters(
         C_impression_initial = 3, # strength of impression when first added to C_info
@@ -70,6 +73,6 @@ print("...Done.")
 print("\nVisualizing the final state with agent paths...")
 assay.visualize(show_paths=True)
 
-dish.get_stimuli((7,7), radius=1, shape='square', mode='count')
+dish.get_stimuli((49,49), radius=1, shape='square', mode='count')
 
 all_data = assay.export_data() # resultant .pkl pickle file to be uploaded to the streamlit dashboard.py

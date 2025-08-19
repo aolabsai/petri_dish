@@ -239,281 +239,46 @@ class PetriDish:
         plt.show()
 
 
-# class Assay:
-#     """
-#     Manages and runs experiments with multiple agents on a PetriDish.
-#     """
-#     def __init__(self, petri_dish, num_agents=5, start_logic='random', start_positions=None, agent_archs="unit clam"):
-#         steps = 1000
-#         metainfo = 4
-#         self.num_agents = num_agents
-#         self.dish = petri_dish
-#         self.agents = np.zeros(num_agents, dtype=object)
-#         self.meta_history = np.zeros((steps, metainfo, num_agents), dtype=object)
-#         self.history = np.zeros((steps, num_agents), dtype=object) # preallocating 1000
-#         self._initialize_agents(num_agents, start_logic, start_positions, agent_archs)
-
-#         # xx, yy = np.indices((self.dish.size, self.dish.size))
-#         # self.layers_proprioceptive = np.copy(self.dish.layers)
-        
-#         # for x in np.nditer(xx):
-#         #     for y in np.nditer(yy):
-#         #         self.layers_proprioceptive[:, x, y] = self.dish.get_stimuli((x, y), radius=self.sensory_radius, shape=self.sensory_shape, mode=self.sensory_mode)
-                
-#     ACTIONS = ['move_forward', 'turn_right', 'turn_left']
-#     HEADINGS = {0: (-1, 0), 1: (0, 1), 2: (1, 0), 3: (0, -1)} # N, E, S, W in (y,x)
-
-#     random = True # set to False to use AO agents
-#     INSTINCTS = False # set to True to trigger instinctual learning in AO agents
-#     sensory_binary_neurons = 10
-#     sensory_radius = 3
-#     sensory_shape = "circle"
-#     sensory_mode = "count"
-
-
-#     # def visualize_proprioceptive(self, combined_only=False):
-#     #     """
-#     #     Visualize the petri dish layers from the perspective of an agent, given the same parameters set for the assay. Helpful to visualize the fairness of the env for the learning agent.
-        
-#     #     """
-#     #     colors = [colorsys.hsv_to_rgb(i / self.dish.num_layers, 1, 1) for i in range(self.dish.num_layers)]
-        
-#     #     fig, axs = plt.subplots(1, self.dish.num_layers, figsize=(4 * (self.dish.num_layers), 4))
-#     #     for i in range(self.dish.num_layers):
-#     #         layer_cmap = ListedColormap([[1, 1, 1], colors[i]])
-#     #         axs[i].imshow(self.layers_proprioceptive[i], cmap=layer_cmap)
-#     #         axs[i].set_title(f'Layer - Proprioceptive (Agent) View{i}')
-#     #         axs[i].axis('off')
-                
-#     #     plt.tight_layout()
-#     #     plt.show()
-
-#     def _initialize_agents(self, num_agents, start_logic, start_positions, agent_archs):
-#         if start_positions:
-#             positions = start_positions
-#         else:
-#             s = self.dish.size
-#             mid, q = s // 2, s // 4
-#             logic_map = {
-#                 'random': [tuple(np.random.randint(0, s, 2)) for _ in range(num_agents)],
-#                 'center': [(mid, mid)] * num_agents,
-#                 'cardinal': [(mid, 0), (mid, s-1), (0, mid), (s-1, mid)],
-#                 'quadrants': [(q, q), (q, s-q), (s-q, q), (s-q, s-q)],
-#                 'corners': [(0, 0), (0, s-1), (s-1, 0), (s-1, s-1)]
-#             }
-#             if start_logic not in logic_map:
-#                 raise ValueError(f"Unknown start_logic: '{start_logic}'.")
-#             positions = logic_map[start_logic]
-#         a = 0
-#         for i, pos in enumerate(positions):
-#             if not (0 <= pos[0] < self.dish.size and 0 <= pos[1] < self.dish.size):
-#                 raise ValueError(f"Start position {pos} is out of bounds.")
-#             print("WGJRGJRROJGEROJEROHJGERJER")
-#             print(self.agents)
-#             print(type(self.agents))
-#             self.agents[a] = {
-#                 'id': a,
-#                 'pos': pos,
-#                 'heading': np.random.randint(0, 4),
-#                 'agent': ao.Agent._unit() if agent_archs == "unit clam" else ao.Agent(agent_archs)
-#             }
-#             self.history[0, a] = self.agents[a]['pos']
-#             a += 1
-        
-#     def _get_agent_action(self, agent):
-#         if self.random:
-#             agent_action = np.random.choice(self.ACTIONS)
-#         else: # run AO Agent
-#             agent_input = self.dish.get_stimuli(agent['pos'], radius=self.sensory_radius, shape=self.sensory_shape, mode=self.sensory_mode)
-#             agent_input_binary = np.asarray([])
-#             for i in agent_input:
-#                 ib = np.zeros(self.sensory_binary_neurons)
-#                 overage = i - self.sensory_binary_neurons
-#                 if overage < 0:
-#                     i = i - overage
-#                 ib[0:i] = 1
-#                 agent_input_binary = np.append(agent_input_binary, ib)
-    
-#             agent_action_binary = agent['agent'].next_state(agent_input_binary, INSTINCTS=self.INSTINCTS)
-            
-#             if agent_action_binary == [1]:
-#                 agent_action = self.ACTIONS[0] # move forward
-#             else: # if [0]
-#                 agent_action = np.random.choice(self.ACTIONS[1:]) # turn right or left randomly
-            
-#         return agent_action
-
-#     def set_agent_hyperparameters(self, C_impression_initial = 10, C_impression_match = 1, C_pruning = 1, C_pruning_cutoff = 5):
-#         for agent in self.agents:
-#             a = agent['agent']
-#             a.C_impression_initial = C_impression_initial # strength of impression when first added to C_info
-#             a.C_impression_match   = C_impression_match  # increment of impression in C_info if accessed
-#             a.C_pruning            = C_pruning # decrement of impression in C_info if not accessed
-#             a.C_pruning_cutoff     = C_pruning_cutoff # value below which impressions are pruned from C_info
-
-#     def run_step(self):
-#         """Runs a single step of the experiment for all agents."""
-
-#         a = 0 # agent counter
-#         for agent in self.agents:
-#             action = self._get_agent_action(agent)
-#             x, y = agent['pos']
-#             if action == 'move_forward':
-#                 dy, dx = self.HEADINGS[agent['heading']]
-#                 new_x, new_y = x + dx, y + dy
-#                 if 0 <= new_x < self.dish.size and 0 <= new_y < self.dish.size:
-#                     agent['pos'] = (new_x, new_y)
-#             elif action == 'turn_right':
-#                 agent['heading'] = (agent['heading'] + 1) % 4
-#             elif action == 'turn_left':
-#                 agent['heading'] = (agent['heading'] - 1 + 4) % 4
-
-#             self.history[self.step, a] = agent['pos']
-#             self.meta_history[self.step, 0, a] = agent.astate[0, agent.arch.I__flat] # current_step_response_to_stimuli
-#             self.meta_history[self.step, 1, a] = agent.astate[0, agent.arch.Q__flat] # current_step_neuronal_response
-#             self.meta_history[self.step, 2, a] = agent.activations_global_C          # current_step_learning_events
-#             self.meta_history[self.step, 3, a] = agent.neurons[agent.arch.Z__flat[0]].outputs.size # current_step_experience_states, checking the size of the Z neuron's lookup table to ascertain how many rows the C learning events resolved into
-#             a += 1
-#         self.step += 1
-
-#     def visualize(self, agents_to_show=None, interval=200, show_paths=True, mode='window'):
-#         """
-#         Visualize the assay, animating agent paths as they develop.
-
-#         This method cycles through the simulation history step-by-step,
-#         displaying paths for all agents or a specified subset.
-
-#         Parameters:
-#         - agents_to_show: list of int, optional. A list of agent IDs to
-#                           display. If None (default), all agents are shown.
-#         - interval: int, default 200. The delay between frames in milliseconds.
-#         - show_paths: bool, default True. If True, displays the trailing path
-#                       of each agent.
-#         - mode: str, default 'window'. Determines the output format.
-#                 - 'window': Displays the animation in a Matplotlib window (default).
-#                 - 'inline': Returns an HTML object for embedding in notebooks.
-#         """
-#         fig, ax = plt.subplots(figsize=(8, 8))
-#         background = self.dish.visualize(combined_only=True)
-#         ax.imshow(background)
-#         ax.axis('off')
-
-#         if agents_to_show is None:
-#             agent_ids = list(range(len(self.agents)))
-#         else:   
-#             if any(i < 0 or i >= self.num_agents for i in agents_to_show):
-#                 raise ValueError("An invalid agent ID was provided in agents_to_show.")
-#             agent_ids = agents_to_show
-
-#         if not agent_ids:
-#             plt.close(fig)
-#             return
-
-#         full_agent_colors = plt.cm.jet(np.linspace(0, 1, len(self.agents)))
-#         history_np = np.array(self.history)
-#         paths_to_show = history_np[:, agent_ids, :]
-        
-#         path_lines = [ax.plot([], [], color=full_agent_colors[i], linewidth=1.5, alpha=0.7)[0] for i in agent_ids]
-#         agent_scatter = ax.scatter([], [], s=100, edgecolors='black', c=[])
-#         title = ax.set_title('')
-
-#         def init():
-#             for line in path_lines:
-#                 line.set_data([], [])
-#             agent_scatter.set_offsets(np.empty((0, 2)))
-#             title.set_text('')
-#             return path_lines + [agent_scatter, title]
-
-#         def update(frame):
-#             if show_paths:
-#                 for idx, line in enumerate(path_lines):
-#                     path_data = paths_to_show[:frame + 1, idx, :]
-#                     line.set_data(path_data[:, 0], path_data[:, 1])
-            
-#             current_positions = paths_to_show[frame, :, :]
-#             agent_scatter.set_offsets(current_positions)
-#             agent_scatter.set_color([full_agent_colors[i] for i in agent_ids])
-#             title.set_text(f'Assay State at Step {frame}')
-            
-#             return path_lines + [agent_scatter, title]
-
-#         anim = FuncAnimation(fig, update, frames=len(self.history), init_func=init,
-#                              interval=interval, blit=True)
-        
-#         if mode == 'inline':
-#             plt.close(fig) # Prevent static plot from showing in notebooks
-#             display(HTML(anim.to_jshtml()))
-#         elif mode == 'window':
-#             plt.show()
-#         else:
-#             plt.close(fig)
-#             raise ValueError("Invalid mode specified. Choose 'window' or 'inline'.")
-
-#     # Function to export data to the streamlit dashboard
-#     def export_data(self, to_step=[], grid_size=4):
-#         import pickle
-#         import pandas as pd
-#         if to_step == []: 
-#             to_step = self.step
-        
-#         exported_assay_data = []
-
-#         for a in range(self.num_of_agents):
-#             exported_assay_data += pd.DataFrame({
-#                 'Time': np.arange(to_step),
-#                 'Response to Stimuli': self.meta_history[to_step, 0, a],
-#                 'Neuronal Response': self.meta_history[to_step, 1, a],
-#                 'Learning Events': self.meta_history[to_step, 2, a],
-#                 'Experience States': self.meta_history[to_step, 3, a],
-#                 'pos_x': self.history[to_step, a][0],
-#                 'pos_y': self.history[to_step, a][1]
-#             })
-        
-#         file_name = "assay_data.pkl"
-#         try:
-#             with open(file_name, "wb") as f:
-#                 pickle.dump(exported_assay_data, f)
-#             print(f"Object successfully saved to {file_name}")
-#         except Exception as e:
-#             print(f"An error occurred: {e}")
-
-
-
 class Assay:
     """
     Manages and runs experiments with multiple agents on a PetriDish.
     """
-    def __init__(self, petri_dish, num_agents=5, start_logic='random', start_positions=None, agent_archs="unit clam"):
+    def __init__(self, petri_dish, num_agents=5, start_logic='random', start_positions=None, agent_archs="unit clam", assay_loadagents=""):
         steps = 1000
         metainfo = 4
-        self.num_agents = num_agents
         self.dish = petri_dish
-        # CHANGED: Initialize history to store x, y in separate columns for easier slicing
+        
+        if type(assay_loadagents) is Assay:
+            # load number of agents from inputted assay
+            self.num_agents = assay_loadagents.num_agents
+        else:
+            self.num_agents = num_agents
         self.history = np.zeros((steps, num_agents, 2), dtype=int) # Shape: (steps, agents, (x,y))
         self.meta_history = np.zeros((steps, num_agents, metainfo), dtype=object) # Shape: (steps, agents, meta_features)
         
-        self._initialize_agents(num_agents, start_logic, start_positions, agent_archs)
+        self._initialize_agents(start_logic, start_positions, agent_archs, assay_loadagents)
         self.step = 0 # Initialize step counter
 
-    ACTIONS = ['move_forward', 'turn_right', 'turn_left']
-    HEADINGS = {0: (-1, 0), 1: (0, 1), 2: (1, 0), 3: (0, -1)} # N, E, S, W in (y,x)
+        self.random = True 
+        self.INSTINCTS = False
+        self.sensory_binary_neurons = 10
+        self.sensory_radius = 3
+        self.sensory_shape = "circle"
+        self.sensory_mode = "count"
 
-    random = True 
-    INSTINCTS = False
-    sensory_binary_neurons = 10
-    sensory_radius = 3
-    sensory_shape = "circle"
-    sensory_mode = "count"
+        self.ACTIONS = ['move_forward', 'turn_right', 'turn_left']
+        self.HEADINGS = {0: (-1, 0), 1: (0, 1), 2: (1, 0), 3: (0, -1)} # N, E, S, W in (y,x)
 
-    def _initialize_agents(self, num_agents, start_logic, start_positions, agent_archs):
+
+    def _initialize_agents(self, start_logic, start_positions, agent_archs, assay_loadagents):
         if start_positions:
             positions = start_positions
         else:
             s = self.dish.size
             mid, q = s // 2, s // 4
             logic_map = {
-                'random': [tuple(np.random.randint(0, s, 2)) for _ in range(num_agents)],
-                'center': [(mid, mid)] * num_agents,
+                'random': [tuple(np.random.randint(0, s, 2)) for _ in range(self.num_agents)],
+                'center': [(mid, mid)] * self.num_agents,
                 'cardinal': [(mid, 0), (mid, s-1), (0, mid), (s-1, mid)],
                 'quadrants': [(q, q), (q, s-q), (s-q, q), (s-q, s-q)],
                 'corners': [(0, 0), (0, s-1), (s-1, 0), (s-1, s-1)]
@@ -522,16 +287,22 @@ class Assay:
                 raise ValueError(f"Unknown start_logic: '{start_logic}'.")
             positions = logic_map[start_logic]
         
-        self.agents = np.empty(num_agents, dtype=object)
-        # FIXED: Use enumerate for a cleaner loop
-        for i, pos in enumerate(positions[:num_agents]):
+        self.agents = np.empty(self.num_agents, dtype=object)
+        for i, pos in enumerate(positions[:self.num_agents]):
             if not (0 <= pos[0] < self.dish.size and 0 <= pos[1] < self.dish.size):
                 raise ValueError(f"Start position {pos} is out of bounds.")
+
+            if type(assay_loadagents) is Assay:
+                # load agent object from inputted assay
+                agent = assay_loadagents.agents[i]['agent'] # loading agent from previous assay
+            else:
+                agent = ao.Agent._unit() if agent_archs == "unit clam" else ao.Agent(agent_archs)
+
             self.agents[i] = {
                 'id': i,
                 'pos': pos,
                 'heading': np.random.randint(0, 4),
-                'agent': ao.Agent._unit() if agent_archs == "unit clam" else ao.Agent(agent_archs)
+                'agent': agent
             }
             # Store initial position in history
             self.history[0, i, 0] = pos[0] # x
