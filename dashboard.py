@@ -123,7 +123,7 @@ if uploaded_file is not None:
             stimuli2_layer[:, :, 1] = env_data[1]
 
             stimuli3_layer = np.zeros((grid_size, grid_size, 3), dtype=bool)
-            stimuli3_layer[:, :, 2] = env_data[0]
+            stimuli3_layer[:, :, 2] = env_data[2]
 
         except (IndexError, TypeError) as e:
             st.error(f"Could not read stimuli layers from the uploaded file. Ensure 'env_data' has the correct format. Error: {e}")
