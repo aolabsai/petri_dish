@@ -31,8 +31,7 @@ def create_layer_rgb(stimuli_layer, color_rgb, grid_size):
     Creates an RGB image layer from a 2D binary array of stimuli.
 
     Args:
-        stimuli_layer (np.ndarray): A 2D numpy array of the same size as the grid,
-                                    where 1s represent stimuli locations.
+        stimuli_layer (np.ndarray): A 2D numpy array where True/1s represent stimuli locations.
         color_rgb (list): The [R, G, B] color for the stimuli.
         grid_size (int): The size of the grid world.
 
@@ -41,16 +40,11 @@ def create_layer_rgb(stimuli_layer, color_rgb, grid_size):
     """
     # Create an empty (black) RGB canvas
     rgb = np.zeros((grid_size, grid_size, 3), dtype=np.uint8)
-
-    i=0
-    for c in color_rgb:
-        rgb[:, :, i] = c
-        i += 1
-
-    rgb[stimuli_layer==False] = 0
+    
+    # Efficiently apply the specified color where stimuli are present
+    rgb[stimuli_layer.astype(bool)] = color_rgb
     
     return rgb
-
 
 def plot_grid(layer_rgb, combined_data, agent_colors, selected_agents, grid_size):
     fig, ax = plt.subplots(figsize=(4, 4))
@@ -116,15 +110,9 @@ if uploaded_file is not None:
 
         # Import stimuli layers from the loaded env_data
         try:
-            stimuli1_layer = np.zeros((grid_size, grid_size, 3), dtype=bool)
-            stimuli1_layer[:, :, 0] = env_data[0]
-
-            stimuli2_layer = np.zeros((grid_size, grid_size, 3), dtype=bool)
-            stimuli2_layer[:, :, 1] = env_data[1]
-
-            stimuli3_layer = np.zeros((grid_size, grid_size, 3), dtype=bool)
-            stimuli3_layer[:, :, 2] = env_data[2]
-
+            stimuli1_layer = env_data[0]
+            stimuli2_layer = env_data[1]
+            stimuli3_layer = env_data[2]
         except (IndexError, TypeError) as e:
             st.error(f"Could not read stimuli layers from the uploaded file. Ensure 'env_data' has the correct format. Error: {e}")
             st.stop()
