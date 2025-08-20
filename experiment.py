@@ -59,7 +59,7 @@ def c0_instinct_rule(INPUT, Agent):
 arch.datamatrix[4, arch.C[1][0]] = c0_instinct_rule # saving the function to the Arch so the Agent can access it
 
 # create assay object, to run tests from it
-assay = Assay(petri_dish=dish, num_agents=10, start_logic='center', agent_archs=arch)
+assay = Assay(petri_dish=dish, num_agents=100, start_logic='center', agent_archs=arch)
 # OR you can also create an Assay that uses Agents from a previous Assay (like moving worms from one petri dish to another)
 # assay = Assay(petri_dish=dish, num_agents=10, start_logic='center', agent_archs=arch, assay_loadagents=assay)
 
@@ -103,7 +103,7 @@ all_data = assay.export_data()
 
 
 # View particular agent
-num_agent = 14
+num_agent = 98
 agent = assay.agents[num_agent]["agent"]
 # View particular neuron of agent
 neuron = agent.neurons[agent.arch.Z__flat[0]]

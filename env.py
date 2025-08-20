@@ -438,22 +438,27 @@ class Assay:
         if to_step is None: 
             to_step = self.step + 1 # Include the latest step
         
-        all_dfs = []
-        for a_idx in range(self.num_agents):
+        agent_names = []
+        agent_dfs = []
+        for a in range(self.num_agents):
+            agent_names.append(f"Agent_{a}") # Add an agent identifier
             df = pd.DataFrame({
                 'Time': np.arange(to_step),
-                'Response to Stimuli': self.meta_history[:to_step, a_idx, 0],
-                'Neuronal Response':   self.meta_history[:to_step, a_idx, 1],
-                'Learning Events':     self.meta_history[:to_step, a_idx, 2],
-                'Experience States':   self.meta_history[:to_step, a_idx, 3],
-                'pos_x': self.history[:to_step, a_idx, 0],
-                'pos_y': self.history[:to_step, a_idx, 1],
-                'Agent': f"Agent_{a_idx}" # Add an agent identifier
+                'Response to Stimuli': self.meta_history[:to_step, a, 0],
+                'Neuronal Response':   self.meta_history[:to_step, a, 1],
+                'Learning Events':     self.meta_history[:to_step, a, 2],
+                'Experience States':   self.meta_history[:to_step, a, 3],
+                'pos_x': self.history[:to_step, a, 0],
+                'pos_y': self.history[:to_step, a, 1]
             })
-            all_dfs.append(df)
+            agent_dfs.append(df)
         
         # Combine all agent DataFrames into a single one, and save the env layers, all in a list for easy exporting
-        final_data = [ pd.concat(all_dfs, ignore_index=True), self.dish.layers ]
+
+        agent_data = [ agent_names, agent_dfs ]
+        env_data = self.dish.layers
+
+        final_data = [ agent_data, env_data ]
 
         try:
             with open(file_name, "wb") as f:

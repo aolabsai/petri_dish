@@ -94,22 +94,41 @@ if uploaded_file is not None:
         # Load the data from the uploaded pickle file
         all_data = pd.read_pickle(uploaded_file)
 
-        full_data = all_data[0]
+        # Unpack the incoming data structure: [[agent_names, agent_dfs], env_data]
+        agent_info = all_data[0]
         env_data = all_data[1]
+
+        # Extract agent names and their corresponding dataframes
+        agent_names = agent_info[0]
+        agent_dfs = agent_info[1]
+
+        # Add the 'Agent' column to each dataframe and prepare for concatenation
+        data_to_concat = []
+        for i, df in enumerate(agent_dfs):
+            # Make a copy to avoid SettingWithCopyWarning
+            df_copy = df.copy()
+            df_copy['Agent'] = agent_names[i]
+            data_to_concat.append(df_copy)
+        
+        # Combine all agent data into a single dataframe
+        full_data = pd.concat(data_to_concat, ignore_index=True)
+        # --- MODIFICATION END ---
+        
         grid_size = env_data[0].shape[0]
 
         # Validate that the necessary columns exist
         required_cols = {'Time', 'Response to Stimuli', 'Neuronal Response', 'Learning Events', 'Experience States', 'pos_x', 'pos_y', 'Agent'}
         if not required_cols.issubset(full_data.columns):
-            st.error(f"Upload Error: The DataFrame in the pickle file must contain the following columns: {', '.join(required_cols)}")
+            missing_cols = required_cols - set(full_data.columns)
+            st.error(f"Upload Error: The DataFrames in the pickle file must contain the following columns: {', '.join(missing_cols)}")
             st.stop()
 
     except Exception as e:
-        st.error(f"An error occurred while reading the pickle file: {e}")
+        st.error(f"An error occurred while reading or processing the pickle file: {e}")
         st.stop()
 
-    # Dynamically get the list of agents from the dataframe
-    agents = sorted(full_data['Agent'].unique())
+    # Dynamically get the list of agents from the loaded list of names
+    agents = agent_names
 
     # Agent selection UI in the sidebar
     st.sidebar.header("Agent Selection")
