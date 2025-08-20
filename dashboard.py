@@ -47,11 +47,34 @@ def create_layer_rgb(stimuli_layer, color_rgb, grid_size):
     return rgb
 
 def plot_grid(layer_rgb, combined_data, agent_colors, selected_agents, grid_size):
+    """
+    Plots the grid world, agent paths, and their start/end points.
+    - Start position is marked with a circle 'o'.
+    - End position is marked with an 'X'.
+    """
     fig, ax = plt.subplots(figsize=(4, 4))
     ax.imshow(layer_rgb)
+
     for agent in selected_agents:
         agent_data = combined_data[combined_data['Agent'] == agent]
-        ax.plot(agent_data['pos_x'], agent_data['pos_y'], color=agent_colors[agent], linewidth=2, alpha=0.8)
+        if not agent_data.empty:
+            # Plot the agent's full path
+            ax.plot(agent_data['pos_x'], agent_data['pos_y'], color=agent_colors[agent], linewidth=2, alpha=0.8)
+            
+            # Get and plot the start position
+            start_pos = agent_data.iloc[0]
+            ax.scatter(start_pos['pos_x'], start_pos['pos_y'], 
+                       marker='o', s=10, 
+                       color=agent_colors[agent], 
+                       edgecolor='white', linewidth=0.5, zorder=5)
+
+            # Get and plot the end position
+            end_pos = agent_data.iloc[-1]
+            ax.scatter(end_pos['pos_x'], end_pos['pos_y'], 
+                       marker='X', s=50, 
+                       color=agent_colors[agent], 
+                       edgecolor='white', linewidth=0.5, zorder=5)
+
     ax.set_xlim(-0.5, grid_size - 0.5)
     ax.set_ylim(-0.5, grid_size - 0.5)
     ax.set_xticklabels([])
