@@ -252,9 +252,11 @@ class Assay:
             # load number of agents from inputted assay
             self.num_agents = assay_loadagents.num_agents
         else:
+            print("didn't get it")
             self.num_agents = num_agents
-        self.history = np.zeros((steps, num_agents, 2), dtype=int) # Shape: (steps, agents, (x,y))
-        self.meta_history = np.zeros((steps, num_agents, metainfo), dtype=object) # Shape: (steps, agents, meta_features)
+        print("ASSAY NUM AGENTS --------------"+str(self.num_agents))
+        self.history = np.zeros((steps, self.num_agents, 2), dtype=int) # Shape: (steps, agents, (x,y))
+        self.meta_history = np.zeros((steps, self.num_agents, metainfo), dtype=object) # Shape: (steps, agents, meta_features)
         
         self._initialize_agents(start_logic, start_positions, agent_archs, assay_loadagents)
         self.step = 0 # Initialize step counter
@@ -321,8 +323,12 @@ class Assay:
             agent_input_binary.extend(input_binary)
         agent_input_binary = np.array(agent_input_binary)
 
-        # if (agent['agent'].astate[0,:] > 1).any():
-        #     print("------------------------------------------------------ERROR WITH INPUT, GO TRACEBACK")
+        
+
+        if (agent['agent'].astate[0,:] > 1).any():
+            print("------------------------------------------------------ERROR WITH INPUT, GO TRACEBACK")
+            print(agent_input_binary)
+            print(agent['agent'].astate[0,:])
 
         agent_action_binary = agent['agent'].next_state(agent_input_binary, INSTINCTS=self.INSTINCTS, print_result=True)
         

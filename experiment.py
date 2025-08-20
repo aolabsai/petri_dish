@@ -18,14 +18,14 @@ env_input_layers = 3
 
 # set distribution of stimuli in environment
 stimuli_dist = [
-    {'type': 'linear', 'direction': 'horizontal-rightleft', 'min_p': 0, 'max_p': 1},
+    {'type': 'linear', 'direction': 'horizontal-rightleft', 'min_p': 0, 'max_p': 0},
     {'type': 'linear', 'direction': 'horizontal-rightleft', 'min_p': 0, 'max_p': 1},
     {'type': 'linear', 'direction': 'horizontal-leftright', 'min_p': 0, 'max_p': 1}
 ]
 
 # create petri dish object, to be used as a param in assay below
 dish = PetriDish(size=env_size, num_layers=env_input_layers, distributions=stimuli_dist)
-dish.visualize()
+# dish.visualize()
 
 
 ## 2) Create Assay, or test over environment
@@ -44,7 +44,7 @@ arch = ao.Arch(
 # create Agent's custom control function, corresponding to pleasure-from-food instinct
 def c0_instinct_rule(INPUT, Agent):
     
-    input_pleasure_threshold = 3 # this number should be close to assay.sensory_binary_neurons and assay.sensory_radius
+    input_pleasure_threshold = 6 # this number should be close to assay.sensory_binary_neurons and assay.sensory_radius
 
     # instinct label
     instinct_label = 1 # when this instinct is triggered, it forces the Z neuron to be in this state
@@ -52,7 +52,7 @@ def c0_instinct_rule(INPUT, Agent):
     instinct_meta = "instinct"
 
     if sum(INPUT[0:input_channel_size]) >= input_pleasure_threshold:
-        instinct_response = [1, "c0 pleasure instinct", [instinct_label, z_nid, instinct_meta]]
+        instinct_response = [1, "c0 pleasure instinct", [z_nid, instinct_label, instinct_meta]]
     else:
         instinct_response = [0, "c0 pass"]    
     return instinct_response            
@@ -61,10 +61,10 @@ arch.datamatrix[4, arch.C[1][0]] = c0_instinct_rule # saving the function to the
 # create assay object, to run tests from it
 assay = Assay(petri_dish=dish, num_agents=100, start_logic='center', agent_archs=arch)
 # OR you can also create an Assay that uses Agents from a previous Assay (like moving worms from one petri dish to another)
-# assay = Assay(petri_dish=dish, num_agents=10, start_logic='center', agent_archs=arch, assay_loadagents=assay)
+# previous_assay = assay
+# assay = Assay(petri_dish=dish, num_agents=100, start_logic='center', agent_archs=arch, assay_loadagents=previous_assay)
 
 ##### Experimental - hyperparameters related to forgetting, or the pruning of neuron-level memories over time
-
 # only makes a difference if run with specific branch ao_core:research_expansion/neuron_pruning branch
 assay.set_agent_hyperparameters(
         C_impression_initial = 5, # strength of impression when first added to neuron from C learning event
@@ -83,9 +83,6 @@ assay.sensory_radius = 1 # this pair of numbers identical to conway's game of li
 # assay.sensory_binary_neurons = 13
 # assay.sensory_radius = 2
 
-print("Visualizing the initial state of the assay...")
-assay.visualize()
-
 # Run the assay simulation
 assay.INSTINCTS = True # to activate training, let's gooooo
 num_steps = 50
@@ -102,8 +99,8 @@ assay.visualize(show_paths=True)
 all_data = assay.export_data()
 
 
-# View particular agent
-num_agent = 98
+# View particular agent / neuron
+num_agent = 1 # if of agent in assay
 agent = assay.agents[num_agent]["agent"]
 # View particular neuron of agent
 neuron = agent.neurons[agent.arch.Z__flat[0]]
