@@ -313,15 +313,16 @@ class Assay:
             return np.random.choice(self.ACTIONS)
         
         # run AO Agent
-        agent_input = self.dish.get_stimuli(agent['pos'], shape=self.sensory_shape, radius=self.sensory_radius,  mode=self.sensory_mode)
+        stimuli_input = self.dish.get_stimuli(agent['pos'], shape=self.sensory_shape, radius=self.sensory_radius,  mode=self.sensory_mode)
         agent_input_binary = []
-        for val in agent_input:
-            ib = np.zeros(self.sensory_binary_neurons)
-            # Ensure val is an integer and doesn't exceed the neuron count
-            num_to_activate = min(int(val), self.sensory_binary_neurons)
-            ib[:num_to_activate] = 1
-            agent_input_binary.extend(ib)
+        for val in stimuli_input:
+            input_binary = np.zeros(self.sensory_binary_neurons)
+            input_binary[0:val] = 1
+            agent_input_binary.extend(input_binary)
         agent_input_binary = np.array(agent_input_binary)
+
+        # if (agent['agent'].astate[0,:] > 1).any():
+        #     print("------------------------------------------------------ERROR WITH INPUT, GO TRACEBACK")
 
         agent_action_binary = agent['agent'].next_state(agent_input_binary, INSTINCTS=self.INSTINCTS, print_result=True)
         
