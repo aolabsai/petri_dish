@@ -5,15 +5,15 @@ import altair as alt
 import matplotlib.pyplot as plt
 
 st.set_page_config(
-    page_title="Petri Dish Experiment Simulator",
+    page_title="AO | Petri Dish Benchmark",
     page_icon="🔬",
     layout="wide",
     initial_sidebar_state="expanded",
-    menu_items={
-        'Get Help': 'https://www.extremelycoolapp.com/help',
-        'Report a bug': "https://www.extremelycoolapp.com/bug",
-        'About': "# This is a header. This is a petri dish simulation app!"
-    }
+    # menu_items={
+    #     'Get Help': 'https://www.extremelycoolapp.com/help',
+    #     'Report a bug': "https://www.extremelycoolapp.com/bug",
+    #     'About': "# This is a header. This is a petri dish simulation app!"
+    # }
 )
 
 st.sidebar.title("Controls")
@@ -23,7 +23,7 @@ uploaded_file = st.sidebar.file_uploader(
     help="Upload a pickle file containing a pandas DataFrame with agent experiment data."
 )
 
-st.title("Agent Performance Dashboard in 2D Grid World")
+st.title("Continuous Learning Benchmark: Petri Dish Simulation")
 
 
 def create_layer_rgb(stimuli_layer, color_rgb, grid_size):
@@ -158,8 +158,13 @@ if uploaded_file is not None:
         # Color scale for Altair charts
         color_scale = alt.Scale(domain=list(agent_colors.keys()), range=list(agent_colors.values()))
 
-        with st.expander("Grid World Views", expanded=True):
-            grid_col1, grid_col2, grid_col3, grid_col4 = st.columns(4)
+        st.header("Agent Movement Over Time")
+
+        with st.expander("Environment View (Combined)", expanded=True):
+            st.pyplot(plot_grid(layer4_rgb, combined_data, agent_colors, selected_agents, grid_size))
+
+        with st.expander("Env Views by Stimuli (Filtered)", expanded=False):
+            grid_col1, grid_col2, grid_col3 = st.columns(3)
             with grid_col1:
                 st.subheader("Layer 1: Red Stimuli")
                 st.pyplot(plot_grid(layer1_rgb, combined_data, agent_colors, selected_agents, grid_size))
@@ -169,15 +174,14 @@ if uploaded_file is not None:
             with grid_col3:
                 st.subheader("Layer 3: Blue Stimuli")
                 st.pyplot(plot_grid(layer3_rgb, combined_data, agent_colors, selected_agents, grid_size))
-            with grid_col4:
-                st.subheader("Combined Layers")
-                st.pyplot(plot_grid(layer4_rgb, combined_data, agent_colors, selected_agents, grid_size))
 
-        with st.expander("Time Series Charts", expanded=True):
+        st.header("Agent Activity Over Time")
+        with st.expander("", expanded=True):
             col1, col2, col3, col4 = st.columns(4)
             # (Chart rendering code remains the same as your original)
             with col1:
                 st.subheader("Response to Stimuli")
+                st.text("I (input) neuron activations over time.")
                 response_chart = alt.Chart(combined_data).mark_line().encode(
                     x=alt.X('Time', axis=alt.Axis(title="")), y=alt.Y('Response to Stimuli', axis=alt.Axis(title="")),
                     color=alt.Color('Agent', scale=color_scale, legend=None),
@@ -186,6 +190,7 @@ if uploaded_file is not None:
                 st.altair_chart(response_chart, use_container_width=True)
             with col2:
                 st.subheader("Neuronal Response")
+                st.text("Q (inner) neuron activations over time.")
                 neuronal_chart = alt.Chart(combined_data).mark_line().encode(
                     x=alt.X('Time', axis=alt.Axis(title="")), y=alt.Y('Neuronal Response', axis=alt.Axis(title="")),
                     color=alt.Color('Agent', scale=color_scale, legend=None),
@@ -194,6 +199,7 @@ if uploaded_file is not None:
                 st.altair_chart(neuronal_chart, use_container_width=True)
             with col3:
                 st.subheader("Control Events")
+                st.text("Total number of learning events over time (when instincts were triggered).")
                 learning_chart = alt.Chart(combined_data).mark_line(interpolate='step-after').encode(
                     x=alt.X('Time', axis=alt.Axis(title="")), y=alt.Y('Learning Events', axis=alt.Axis(title="")),
                     color=alt.Color('Agent', scale=color_scale, legend=None),
@@ -202,6 +208,7 @@ if uploaded_file is not None:
                 st.altair_chart(learning_chart, use_container_width=True)
             with col4:
                 st.subheader("Experience States")
+                st.text("Total number of unique memories in the output neuron (unique learning events).")
                 states_chart = alt.Chart(combined_data).mark_line().encode(
                     x=alt.X('Time', axis=alt.Axis(title="")), y=alt.Y('Experience States', axis=alt.Axis(title="")),
                     color=alt.Color('Agent', scale=color_scale, legend=None),
