@@ -166,13 +166,13 @@ if uploaded_file is not None:
         with st.expander("Env Views by Stimuli (Filtered)", expanded=False):
             grid_col1, grid_col2, grid_col3 = st.columns(3)
             with grid_col1:
-                st.subheader("Layer 1: Red Stimuli")
+                st.subheader("Layer 1: Red (Food)")
                 st.pyplot(plot_grid(layer1_rgb, combined_data, agent_colors, selected_agents, grid_size))
             with grid_col2:
-                st.subheader("Layer 2: Green Stimuli")
+                st.subheader("Layer 2: Green")
                 st.pyplot(plot_grid(layer2_rgb, combined_data, agent_colors, selected_agents, grid_size))
             with grid_col3:
-                st.subheader("Layer 3: Blue Stimuli")
+                st.subheader("Layer 3: Blue")
                 st.pyplot(plot_grid(layer3_rgb, combined_data, agent_colors, selected_agents, grid_size))
 
         st.header("Agent Activity Over Time")
@@ -180,7 +180,7 @@ if uploaded_file is not None:
             col1, col2, col3, col4 = st.columns(4)
             # (Chart rendering code remains the same as your original)
             with col1:
-                st.subheader("Response to Stimuli")
+                st.subheader("Stimuli")
                 st.text("I (input) neuron activations over time.")
                 response_chart = alt.Chart(combined_data).mark_line().encode(
                     x=alt.X('Time', axis=alt.Axis(title="")), y=alt.Y('Response to Stimuli', axis=alt.Axis(title="")),

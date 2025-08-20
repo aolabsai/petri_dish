@@ -111,24 +111,24 @@ class PetriDish:
         else:
             raise ValueError(f"Unknown distribution type: {t}")
 
-    def get_stimuli(self, coordinates, radius=0, shape='circle', weighting='uniform', sigma=None, mode='concentration'):
+    def get_stimuli(self, coordinates, shape='square', radius=0, mode='count', weighting='uniform', sigma=None):
         """
         Get stimuli values at or around a given coordinate.
 
         Parameters:
         - coordinates: tuple (int, int), the (x, y) center coordinate.
+        - shape: str (default 'square'), the shape of the area.
+                 Options: 'circle', 'square'.
         - radius: int (default 0), the radius of the area to consider. If 0,
                   only the center coordinate is checked.
-        - shape: str (default 'circle'), the shape of the area.
-                 Options: 'circle', 'square'.
+        - mode: str (default 'count'), the operation to perform.
+                Options: 'concentration' (returns a float from 0.0 to 1.0),
+                         'count' (returns an integer count of active stimuli).
         - weighting: str (default 'uniform'), the weighting method for stimuli
                      within the radius. Only used when mode is 'concentration'.
                      Options: 'uniform', 'linear', 'gaussian'.
         - sigma: float, optional. The standard deviation for 'gaussian'
                  weighting. Defaults to radius / 2.0.
-        - mode: str (default 'concentration'), the operation to perform.
-                Options: 'concentration' (returns a float from 0.0 to 1.0),
-                         'count' (returns an integer count of active stimuli).
 
         Returns:
         - list of int or list of float: Based on the mode, returns a list of
@@ -259,8 +259,8 @@ class Assay:
         self._initialize_agents(start_logic, start_positions, agent_archs, assay_loadagents)
         self.step = 0 # Initialize step counter
 
-        self.random = True 
-        self.INSTINCTS = False
+        self.random = False # set to true to move agents randomly, not through ao.next_state, useful for debugging the UI in isolation 
+        self.INSTINCTS = True
         self.sensory_binary_neurons = 10
         self.sensory_radius = 3
         self.sensory_shape = "circle"
@@ -313,7 +313,7 @@ class Assay:
             return np.random.choice(self.ACTIONS)
         
         # run AO Agent
-        agent_input = self.dish.get_stimuli(agent['pos'], radius=self.sensory_radius, shape=self.sensory_shape, mode=self.sensory_mode)
+        agent_input = self.dish.get_stimuli(agent['pos'], shape=self.sensory_shape, radius=self.sensory_radius,  mode=self.sensory_mode)
         agent_input_binary = []
         for val in agent_input:
             ib = np.zeros(self.sensory_binary_neurons)
@@ -333,6 +333,7 @@ class Assay:
     def set_agent_hyperparameters(self, C_impression_initial=10, C_impression_match=1, C_pruning=1, C_pruning_cutoff=5):
         for agent_dict in self.agents:
             a = agent_dict['agent']
+            a._save_C_info = True
             a.C_impression_initial = C_impression_initial
             a.C_impression_match = C_impression_match
             a.C_pruning = C_pruning
