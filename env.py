@@ -1,4 +1,3 @@
-
 # code below generated with Grok 4 (thinking) and polished up further with Google Gemini
 # https://grok.com/chat/cd16182e-2314-496f-a560-cf165dc6665d
 # https://aistudio.google.com/app/prompts?state=%7B%22ids%22:%5B%221u-B0YbunS-OQkpvWC1nkH69gzXhusZPW%22%5D,%22action%22:%22open%22,%22userId%22:%22102063868279130831651%22,%22resourceKeys%22:%7B%7D%7D&usp=sharing
@@ -16,7 +15,7 @@ import ao_core as ao
 
 
 class PetriDish:
-    def __init__(self, size=100, num_layers=3, distributions=None):
+    def __init__(self, size=100, num_layers=3, distributions=None, stimuli_intensity=1):
         """
         Initialize the PetriDish simulation.
 
@@ -37,25 +36,27 @@ class PetriDish:
               - 'center': tuple (float, float), optional (backward compatibility, use 'position' instead)
               - 'min_p': float (default 0.0), probability at maximum distance
               - 'max_p': float (default 1.0), probability at the highest point
+        - stimuli_intensity: int (default 9), the maximum intensity of a stimulus at a point (range from 0 to n).
 
           If None, defaults to three example distributions.
         """
         if distributions is None:
             distributions = [
-                {'type': 'linear', 'direction': 'horizontal', 'min_p': 0.0, 'max_p': 0.5},
-                {'type': 'linear', 'direction': 'vertical', 'min_p': 0.0, 'max_p': 0.5},
-                {'type': 'radial', 'center': (0.5, 0.5), 'min_p': 0.0, 'max_p': 0.5}
+                {'type': 'linear', 'direction': 'horizontal-rightleft', 'min_p': 0.0, 'max_p': 0.5},
+                {'type': 'linear', 'direction': 'vertical-downup', 'min_p': 0.0, 'max_p': 0.5},
+                {'type': 'radial', 'position': 'center', 'min_p': 0.0, 'max_p': 0.5}
             ][:num_layers]
 
         self.size = size
         self.num_layers = num_layers
+        self.stimuli_intensity = stimuli_intensity
         x = np.linspace(0, 1, size)
         y = np.linspace(0, 1, size)
         self.X, self.Y = np.meshgrid(x, y)
         self.layers = []
         for d in distributions[0:num_layers]:
             p_grid = self._get_p_grid(d)
-            grid = np.random.binomial(1, p_grid).astype(int)
+            grid = np.random.binomial(self.stimuli_intensity, p_grid).astype(int)
             self.layers.append(grid)
 
     def _get_position(self, dist):
@@ -205,20 +206,23 @@ class PetriDish:
         Parameters:
         - combined_only: bool, if True, returns only the combined RGB grid.
         """
-        # Create the combined RGB grid
-        combined = np.ones((self.size, self.size, 3), dtype=float)
-        color_sums = np.zeros((self.size, self.size, 3), dtype=float)
-        counts = np.zeros((self.size, self.size), dtype=float)
         colors = [colorsys.hsv_to_rgb(i / self.num_layers, 1, 1) for i in range(self.num_layers)]
         
-        for i in range(self.num_layers):
-            mask = self.layers[i] == 1
-            color_sums[mask] += colors[i]
-            counts[mask] += 1
+        # Create the combined RGB grid by blending colors based on intensity
+        combined = np.ones((self.size, self.size, 3), dtype=float)
+        color_sums = np.zeros((self.size, self.size, 3), dtype=float)
+        intensity_sums = np.zeros((self.size, self.size), dtype=float)
         
-        mask_active = counts > 0
+        for i in range(self.num_layers):
+            intensity = self.layers[i]
+            color = np.array(colors[i])
+            color_sums += intensity[:, :, np.newaxis] * color
+            intensity_sums += intensity
+        
+        mask_active = intensity_sums > 0
         if np.any(mask_active):
-            combined[mask_active] = color_sums[mask_active] / counts[mask_active][:, None]
+            # Normalize the color sums by the total intensity at each pixel
+            combined[mask_active] = color_sums[mask_active] / intensity_sums[mask_active][:, np.newaxis]
         
         if combined_only:
             return combined
@@ -226,8 +230,12 @@ class PetriDish:
         # Full visualization with subplots
         fig, axs = plt.subplots(1, self.num_layers + 1, figsize=(4 * (self.num_layers + 1), 4))
         for i in range(self.num_layers):
-            layer_cmap = ListedColormap([[1, 1, 1], colors[i]])
-            axs[i].imshow(self.layers[i], cmap=layer_cmap)
+            color = colors[i]
+            # Create a colormap for this layer from white to the layer's color
+            cmap_colors = np.array([np.linspace(1, c, self.stimuli_intensity + 1) for c in color]).T
+            layer_cmap = ListedColormap(cmap_colors)
+            
+            axs[i].imshow(self.layers[i], cmap=layer_cmap, vmin=0, vmax=self.stimuli_intensity)
             axs[i].set_title(f'Layer {i}')
             axs[i].axis('off')
         
@@ -243,7 +251,7 @@ class Assay:
     """
     Manages and runs experiments with multiple agents on a PetriDish.
     """
-    def __init__(self, petri_dish, num_agents=5, start_logic='random', start_positions=None, agent_archs="unit clam", assay_loadagents=""):
+    def __init__(self, petri_dish, num_agents=5, start_logic='random', start_positions=None, agent_archs="unit clam", assay_loadagents="", save_agent_meta=False):
         steps = 1000
         metainfo = 7
         self.dish = petri_dish
@@ -259,7 +267,8 @@ class Assay:
         self.num_learning_types = len(self.agent_archs.arch_c)
         self.history = np.zeros((steps, self.num_agents, 2), dtype=int) # Shape: (steps, agents, (x,y))
         self.meta_history = np.zeros((steps, self.num_agents, metainfo+self.num_learning_types), dtype=object) # Shape: (steps, agents, meta_features)
-        
+        self.save_agent_meta = save_agent_meta # for ao agent debugging
+         
         self._initialize_agents(start_logic, start_positions, assay_loadagents)
         self.step = 0 # Initialize step counter
 
@@ -300,8 +309,7 @@ class Assay:
                 # load agent object from inputted assay
                 agent = assay_loadagents.agents[i]['agent'] # loading agent from previous assay
             else:
-                agent = ao.Agent(self.agent_archs)
-    
+                agent = ao.Agent(self.agent_archs, save_meta=self.save_agent_meta)
                 # setting up counters for learning events
                 for c in self.agent_archs.C_types_names:
                     setattr(agent, c, 0)
@@ -325,8 +333,11 @@ class Assay:
         stimuli_input = self.dish.get_stimuli(agent['pos'], shape=self.sensory_shape, radius=self.sensory_radius,  mode=self.sensory_mode)
         agent_input_binary = []
         for val in stimuli_input:
+            # Round and cap the value to the number of sensory neurons to avoid errors
+            val_capped = min(int(round(val)), self.sensory_binary_neurons)
             input_binary = np.zeros(self.sensory_binary_neurons)
-            input_binary[0:val] = 1
+            if val_capped > 0:
+                input_binary[0:val_capped] = 1
             agent_input_binary.extend(input_binary)
         agent_input_binary = np.array(agent_input_binary)
 

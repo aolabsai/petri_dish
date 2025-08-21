@@ -15,17 +15,18 @@ from env import PetriDish, Assay
 # size of env (a square)
 env_size = 100
 env_input_layers = 3
+stimuli_intensity = 1
 
 # set distribution of stimuli in environment
-stimuli_dist = [
+stimuli_distribution = [
     {'type': 'linear', 'direction': 'horizontal-rightleft', 'min_p': 0, 'max_p': 1},
     {'type': 'linear', 'direction': 'horizontal-rightleft', 'min_p': 0, 'max_p': 1},
     {'type': 'linear', 'direction': 'horizontal-leftright', 'min_p': 0, 'max_p': 1}
 ]
 
 # create petri dish object, to be used as a param in assay below
-dish = PetriDish(size=env_size, num_layers=env_input_layers, distributions=stimuli_dist)
-# dish.visualize()
+dish = PetriDish(size=env_size, num_layers=env_input_layers, distributions=stimuli_distribution, stimuli_intensity=stimuli_intensity)
+dish.visualize()
 
 
 ## 2) Create Assay, or test over environment
@@ -81,7 +82,7 @@ def c1_instinct_rule(INPUT, Agent):
 arch.datamatrix[4, arch.C[1][1]] = c1_instinct_rule # saving the function to the Arch so the Agent can access it
 
 # create assay object, to run tests from it
-assay = Assay(petri_dish=dish, num_agents=100, start_logic='center', agent_archs=arch)
+assay = Assay(petri_dish=dish, num_agents=100, start_logic='center', agent_archs=arch, save_agent_meta=False)
 # OR you can also create an Assay that uses Agents from a previous Assay (like moving worms from one petri dish to another)
 # previous_assay = assay
 # assay = Assay(petri_dish=dish, num_agents=100, start_logic='center', agent_archs=arch, assay_loadagents=previous_assay)

@@ -26,25 +26,78 @@ uploaded_file = st.sidebar.file_uploader(
 st.title("Continuous Learning Benchmark: Petri Dish Simulation")
 
 
-def create_layer_rgb(stimuli_layer, color_rgb, grid_size):
+def create_layer_rgb(stimuli_layer, color_rgb, grid_size, max_intensity):
     """
-    Creates an RGB image layer from a 2D binary array of stimuli.
+    Creates an RGB image layer from a 2D integer array of stimuli,
+    shading the color based on intensity.
 
     Args:
-        stimuli_layer (np.ndarray): A 2D numpy array where True/1s represent stimuli locations.
-        color_rgb (list): The [R, G, B] color for the stimuli.
+        stimuli_layer (np.ndarray): A 2D numpy array with integer intensities.
+        color_rgb (list): The [R, G, B] color for the stimuli at max intensity.
         grid_size (int): The size of the grid world.
+        max_intensity (float): The maximum possible intensity value for normalization.
 
     Returns:
         np.ndarray: A 3D numpy array representing the RGB image layer.
     """
-    # Create an empty (black) RGB canvas
-    rgb = np.zeros((grid_size, grid_size, 3), dtype=np.uint8)
+    # Ensure max_intensity is not zero to avoid division errors.
+    if max_intensity == 0:
+        max_intensity = 1.0
+        
+    # Normalize the intensity layer to a float array from 0.0 to 1.0
+    # Add a new axis to allow for broadcasting with color arrays.
+    normalized_intensity = (stimuli_layer / max_intensity)[:, :, np.newaxis]
     
-    # Efficiently apply the specified color where stimuli are present
-    rgb[stimuli_layer.astype(bool)] = color_rgb
+    # Define the base color (e.g., red) and the background color (white)
+    base_color = np.array(color_rgb, dtype=float)
+    background_color = np.array([0, 0, 0], dtype=float)
     
-    return rgb
+    # Linearly interpolate from the background to the base color using the intensity
+    rgb_layer = background_color + normalized_intensity * (base_color - background_color)
+    
+    # Clip values to the valid 0-255 range and convert to an 8-bit integer format
+    return np.clip(rgb_layer, 0, 255).astype(np.uint8)
+
+def create_combined_rgb(layers, colors, grid_size):
+    """
+    Creates a combined RGB image by performing a weighted average of the colors
+    based on the intensity of each stimulus layer.
+
+    Args:
+        layers (list of np.ndarray): A list of 2D numpy arrays for each stimulus layer.
+        colors (list of list): A list of [R, G, B] colors for each layer.
+        grid_size (int): The size of the grid world.
+
+    Returns:
+        np.ndarray: A 3D numpy array representing the combined RGB image.
+    """
+    # Start with a white canvas, using float for precise calculations
+    combined_rgb = np.full((grid_size, grid_size, 3), 255, dtype=float)
+    
+    # Accumulators for the weighted color sum and the total intensity at each pixel
+    color_sums = np.zeros((grid_size, grid_size, 3), dtype=float)
+    intensity_sums = np.zeros((grid_size, grid_size), dtype=float)
+
+    # Process each layer and its corresponding color
+    for layer, color_rgb in zip(layers, colors):
+        color_array = np.array(color_rgb, dtype=float)
+        # Add the weighted color to the sum (intensity * color)
+        color_sums += layer[:, :, np.newaxis] * color_array
+        intensity_sums += layer
+
+    # Create a mask to identify all pixels where at least one stimulus is active
+    active_pixels_mask = intensity_sums > 0
+    
+    # To avoid division by zero, calculate the averaged color only for active pixels
+    # The intensity_sums array needs a new axis to correctly divide the color_sums array
+    averaged_colors = color_sums[active_pixels_mask] / intensity_sums[active_pixels_mask][:, np.newaxis]
+    
+    # Apply the calculated average colors to the corresponding pixels in the final image
+    combined_rgb[active_pixels_mask] = averaged_colors
+    
+    # Clip values and convert to the final uint8 image format
+    return np.clip(combined_rgb, 0, 255).astype(np.uint8)
+
 
 def plot_grid(layer_rgb, combined_data, agent_colors, selected_agents, grid_size):
     """
@@ -53,6 +106,7 @@ def plot_grid(layer_rgb, combined_data, agent_colors, selected_agents, grid_size
     - End position is marked with an 'X'.
     """
     fig, ax = plt.subplots(figsize=(4, 4))
+    fig.patch.set_facecolor((51/255, 51/255, 51/255))
     ax.imshow(layer_rgb)
 
     for agent in selected_agents:
@@ -165,22 +219,24 @@ if uploaded_file is not None:
         color_list = ['blue', 'orange', 'green', 'red', 'purple', 'brown', 'pink', 'gray', 'olive', 'cyan']
         agent_colors = {agent: color_list[i % len(color_list)] for i, agent in enumerate(agents)}
 
-        # Import stimuli layers from the loaded env_data
+        # Import stimuli layers and define their colors
         try:
-            stimuli1_layer = env_data[0]
-            stimuli2_layer = env_data[1]
-            stimuli3_layer = env_data[2]
+            layers = [env_data[0], env_data[1], env_data[2]]
+            colors = [[255, 0, 0], [0, 255, 0], [0, 0, 255]] # Red, Green, Blue
         except (IndexError, TypeError) as e:
             st.error(f"Could not read stimuli layers from the uploaded file. Ensure 'env_data' has the correct format. Error: {e}")
             st.stop()
 
-        # Create the RGB layers for visualization
-        layer1_rgb = create_layer_rgb(stimuli1_layer, [255, 0, 0], grid_size)  # Red
-        layer2_rgb = create_layer_rgb(stimuli2_layer, [0, 255, 0], grid_size)  # Green
-        layer3_rgb = create_layer_rgb(stimuli3_layer, [0, 0, 255], grid_size)  # Blue
+        # Find the global maximum intensity across all layers for consistent normalization
+        max_intensity = float(max(layer.max() for layer in layers if layer.size > 0) or 1)
         
-        # Combine layers for the composite view
-        layer4_rgb = np.clip(layer1_rgb.astype(np.uint16) + layer2_rgb.astype(np.uint16) + layer3_rgb.astype(np.uint16), 0, 255).astype(np.uint8)
+        # Create the RGB layers for visualization, now showing intensity
+        layer1_rgb = create_layer_rgb(layers[0], colors[0], grid_size, max_intensity)
+        layer2_rgb = create_layer_rgb(layers[1], colors[1], grid_size, max_intensity)
+        layer3_rgb = create_layer_rgb(layers[2], colors[2], grid_size, max_intensity)
+        
+        # Combine layers for the composite view using weighted averaging
+        layer4_rgb = create_combined_rgb(layers, colors, grid_size)
 
         # Display the agent legend
         legend_text = " **Agent Legend:** " + " | ".join([
