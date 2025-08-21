@@ -221,8 +221,8 @@ if uploaded_file is not None:
                 with col:
                     st.subheader(layer_titles[i])
                     response_chart = alt.Chart(combined_data).mark_line().encode(
-                        x=alt.X('Time', axis=alt.Axis(title="")), 
-                        y=alt.Y(stimuli_cols[i], axis=alt.Axis(title="Activation")),
+                        x=alt.X('Time', axis=alt.Axis(title=None)), 
+                        y=alt.Y(stimuli_cols[i], axis=alt.Axis(title=None)),
                         color=alt.Color('Agent', scale=color_scale, legend=None),
                         tooltip=['Time', stimuli_cols[i], 'Agent']
                     ).interactive()
@@ -236,8 +236,8 @@ if uploaded_file is not None:
                 with col:
                     st.subheader(layer_titles[i])
                     neuronal_chart = alt.Chart(combined_data).mark_line().encode(
-                        x=alt.X('Time', axis=alt.Axis(title="")), 
-                        y=alt.Y(neuronal_cols[i], axis=alt.Axis(title="Activation")),
+                        x=alt.X('Time', axis=alt.Axis(title=None)), 
+                        y=alt.Y(neuronal_cols[i], axis=alt.Axis(title=None)),
                         color=alt.Color('Agent', scale=color_scale, legend=None),
                         tooltip=['Time', neuronal_cols[i], 'Agent']
                     ).interactive()
@@ -327,6 +327,8 @@ if uploaded_file is not None:
                         st.warning("Please select at least one event type to display the chart.")
 
             with col4:
+                st.write("##")
+                st.write("#")
                 st.subheader("Experience States")
                 st.text("Total number of unique memories in the output neuron (unique learning events).")
                 states_chart = alt.Chart(combined_data).mark_line().encode(
