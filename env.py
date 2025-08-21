@@ -330,13 +330,6 @@ class Assay:
             agent_input_binary.extend(input_binary)
         agent_input_binary = np.array(agent_input_binary)
 
-        
-
-        if (agent['agent'].astate[0,:] > 1).any():
-            print("------------------------------------------------------ERROR WITH INPUT, GO TRACEBACK")
-            print(agent_input_binary)
-            print(agent['agent'].astate[0,:])
-
         agent_action_binary = agent['agent'].next_state(agent_input_binary, INSTINCTS=self.INSTINCTS, print_result=True)
         
         if np.array_equal(agent_action_binary, [1]):
