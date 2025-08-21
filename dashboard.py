@@ -317,6 +317,7 @@ if uploaded_file is not None:
                 # If the checkbox is ticked, show the combined plot
                 if combine_pleasure_pain:
                     combined_data['Combined_Events'] = combined_data['Pleasure'] - combined_data['Pain']
+                    st.write("#")
                     
                     st.text("Displaying the net of Pleasure minus Pain.")
                     

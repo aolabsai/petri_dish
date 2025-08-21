@@ -112,7 +112,7 @@ class PetriDish:
         else:
             raise ValueError(f"Unknown distribution type: {t}")
 
-    def get_stimuli(self, coordinates, shape='square', radius=0, mode='count', weighting='uniform', sigma=None):
+    def get_stimuli(self, coordinates, shape='square', radius=1, mode='count', weighting='uniform', sigma=None):
         """
         Get stimuli values at or around a given coordinate.
 
@@ -274,10 +274,18 @@ class Assay:
 
         self.random = False # set to true to move agents randomly, not through ao.next_state, useful for debugging the UI in isolation 
         self.INSTINCTS = True
-        self.sensory_binary_neurons = 10
-        self.sensory_radius = 3
-        self.sensory_shape = "circle"
+
+        # Set sensory range of agent (how far agents can "see" around them) - 2 options available, circle or square
+        ## if square
+        self.sensory_shape = "square"
         self.sensory_mode = "count"
+        self.sensory_radius = 1 # this pair of numbers identical to conway's game of life
+        self.sensory_binary_neurons = 9 * self.dish.stimuli_intensity   # 9 here derived from the sensory radius applied as a square around the agent'd grid point
+        ## if circle
+        # self.sensory_shape = "circle"
+        # self.sensory_mode = "count"
+        # self.sensory_radius = 2
+        # self.sensory_binary_neurons = 13
 
         self.ACTIONS = ['move_forward', 'turn_right', 'turn_left']
         self.HEADINGS = {0: (-1, 0), 1: (0, 1), 2: (1, 0), 3: (0, -1)} # N, E, S, W in (y,x)
