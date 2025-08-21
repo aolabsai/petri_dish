@@ -364,14 +364,13 @@ class Assay:
 
     def run_step(self, steps):
         """Runs a single step of the experiment for all agents."""
-        self.step += 1
-        if self.step >= self.history.shape[0]:
-            # Optional: Add logic to extend history arrays if needed
-            print("Warning: History limit reached.")
-            self.step -= 1
+
+        if self.step == self.history.shape[0]:
+            print("Warning: History limit reached, assay memory full.")
             return
 
         for s in range(steps):
+            self.step += 1
 
             for i, agent_dict in enumerate(self.agents):
                 action = self._get_agent_action(agent_dict)
@@ -399,7 +398,6 @@ class Assay:
                 for c in range(self.num_learning_types):
                     self.meta_history[self.step, i, 2+c] = getattr(agent_instance, self.agent_archs.C_types_names[c])
 
-                self.step += 1
 
     def visualize(self, agents_to_show=None, interval=200, show_paths=True, mode='window'):
         # This function seems mostly fine, but the history slicing needs to be updated.
