@@ -105,13 +105,14 @@ assay.sensory_radius = 1 # this pair of numbers identical to conway's game of li
 # assay.sensory_binary_neurons = 13
 # assay.sensory_radius = 2
 
+# num_steps = 10
+# assay.pretrain_random(num_steps)
+
 # Run the assay simulation
 assay.INSTINCTS = True # to activate training, let's gooooo
 num_steps = 50
 print(f"\nRunning the assay for {num_steps} steps...")
-for step in range(num_steps):
-    assay.run_step()
-print("...Done.")
+assay.run_step(num_steps)
 
 # Visualize the final state and agent paths
 print("\nVisualizing the final state with agent paths...")

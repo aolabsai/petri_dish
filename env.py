@@ -362,7 +362,7 @@ class Assay:
                 agent_dict['agent'].reset_state()
 
 
-    def run_step(self):
+    def run_step(self, steps):
         """Runs a single step of the experiment for all agents."""
         self.step += 1
         if self.step >= self.history.shape[0]:
@@ -371,31 +371,35 @@ class Assay:
             self.step -= 1
             return
 
-        for i, agent_dict in enumerate(self.agents):
-            action = self._get_agent_action(agent_dict)
-            x, y = agent_dict['pos']
-            if action == 'move_forward':
-                dy, dx = self.HEADINGS[agent_dict['heading']]
-                new_x, new_y = x + dx, y + dy
-                if 0 <= new_x < self.dish.size and 0 <= new_y < self.dish.size:
-                    agent_dict['pos'] = (new_x, new_y)
-            elif action == 'turn_right':
-                agent_dict['heading'] = (agent_dict['heading'] + 1) % 4
-            elif action == 'turn_left':
-                agent_dict['heading'] = (agent_dict['heading'] - 1 + 4) % 4
+        for s in range(steps):
 
-            # Store history for the current step
-            self.history[self.step, i, 0] = agent_dict['pos'][0] # x
-            self.history[self.step, i, 1] = agent_dict['pos'][1] # y
-            
-            # For AO agents, store meta history
-            agent_instance = agent_dict['agent']
-            self.meta_history[self.step, i, 0] = sum(agent_instance.astate[0, agent_instance.arch.I__flat])
-            self.meta_history[self.step, i, 1] = sum(agent_instance.astate[0, agent_instance.arch.Q__flat])
-            try: self.meta_history[self.step, i, 2] = agent_instance.neurons[agent_instance.arch.Z__flat[0]].outputs.size
-            except: AttributeError 
-            for c in range(self.num_learning_types):
-                self.meta_history[self.step, i, 2+c] = getattr(agent_instance, self.agent_archs.C_types_names[c])
+            for i, agent_dict in enumerate(self.agents):
+                action = self._get_agent_action(agent_dict)
+                x, y = agent_dict['pos']
+                if action == 'move_forward':
+                    dy, dx = self.HEADINGS[agent_dict['heading']]
+                    new_x, new_y = x + dx, y + dy
+                    if 0 <= new_x < self.dish.size and 0 <= new_y < self.dish.size:
+                        agent_dict['pos'] = (new_x, new_y)
+                elif action == 'turn_right':
+                    agent_dict['heading'] = (agent_dict['heading'] + 1) % 4
+                elif action == 'turn_left':
+                    agent_dict['heading'] = (agent_dict['heading'] - 1 + 4) % 4
+
+                # Store history for the current step
+                self.history[self.step, i, 0] = agent_dict['pos'][0] # x
+                self.history[self.step, i, 1] = agent_dict['pos'][1] # y
+                
+                # For AO agents, store meta history
+                agent_instance = agent_dict['agent']
+                self.meta_history[self.step, i, 0] = sum(agent_instance.astate[0, agent_instance.arch.I__flat])
+                self.meta_history[self.step, i, 1] = sum(agent_instance.astate[0, agent_instance.arch.Q__flat])
+                try: self.meta_history[self.step, i, 2] = agent_instance.neurons[agent_instance.arch.Z__flat[0]].outputs.size
+                except: AttributeError 
+                for c in range(self.num_learning_types):
+                    self.meta_history[self.step, i, 2+c] = getattr(agent_instance, self.agent_archs.C_types_names[c])
+
+                self.step += 1
 
     def visualize(self, agents_to_show=None, interval=200, show_paths=True, mode='window'):
         # This function seems mostly fine, but the history slicing needs to be updated.
