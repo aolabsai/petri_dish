@@ -115,8 +115,12 @@ if uploaded_file is not None:
         
         grid_size = env_data[0].shape[0]
 
-        # Validate that the necessary columns exist
-        required_cols = {'Time', 'Response to Stimuli', 'Neuronal Response', 'Experience States', 'pos_x', 'pos_y', 'Agent'}
+        # --- MODIFICATION: Updated required_cols to check for layer-specific columns ---
+        required_cols = {
+            'Time', 'Experience States', 'pos_x', 'pos_y', 'Agent',
+            'stimuli0', 'stimuli1', 'stimuli2',
+            'neuronal0', 'neuronal1', 'neuronal2'
+        }
         
         # --- MODIFICATION: Dynamically find learning event columns ---
         learning_event_cols = [col for col in full_data.columns if 'Events' in col]
@@ -206,29 +210,43 @@ if uploaded_file is not None:
                 st.pyplot(plot_grid(layer3_rgb, combined_data, agent_colors, selected_agents, grid_size))
 
         st.header("Agent Activity Over Time")
-        with st.expander("", expanded=True):
-            col1, col2, col3, col4 = st.columns(4)
-            # (Chart rendering code remains the same as your original)
-            with col1:
-                st.subheader("Stimuli")
-                st.text("I (input) neuron activations over time.")
-                response_chart = alt.Chart(combined_data).mark_line().encode(
-                    x=alt.X('Time', axis=alt.Axis(title="")), y=alt.Y('Response to Stimuli', axis=alt.Axis(title="")),
-                    color=alt.Color('Agent', scale=color_scale, legend=None),
-                    tooltip=['Time', 'Response to Stimuli', 'Agent']
-                ).interactive()
-                st.altair_chart(response_chart, use_container_width=True)
-            with col2:
-                st.subheader("Neuronal Response")
-                st.text("Q (inner) neuron activations over time.")
-                neuronal_chart = alt.Chart(combined_data).mark_line().encode(
-                    x=alt.X('Time', axis=alt.Axis(title="")), y=alt.Y('Neuronal Response', axis=alt.Axis(title="")),
-                    color=alt.Color('Agent', scale=color_scale, legend=None),
-                    tooltip=['Time', 'Neuronal Response', 'Agent']
-                ).interactive()
-                st.altair_chart(neuronal_chart, use_container_width=True)
+        
+        # --- MODIFICATION: Create 3 graphs for Stimuli and Neuronal responses ---
+        with st.expander("I (input) Neuron Activations by Stimuli Layer", expanded=True):
+            s_col1, s_col2, s_col3 = st.columns(3)
+            layer_titles = ["Layer 1: Red (Food)", "Layer 2: Green", "Layer 3: Blue"]
+            stimuli_cols = ['stimuli0', 'stimuli1', 'stimuli2']
             
-            # --- MODIFICATION: Updated Control Events chart with combine option ---
+            for i, col in enumerate([s_col1, s_col2, s_col3]):
+                with col:
+                    st.subheader(layer_titles[i])
+                    response_chart = alt.Chart(combined_data).mark_line().encode(
+                        x=alt.X('Time', axis=alt.Axis(title="")), 
+                        y=alt.Y(stimuli_cols[i], axis=alt.Axis(title="Activation")),
+                        color=alt.Color('Agent', scale=color_scale, legend=None),
+                        tooltip=['Time', stimuli_cols[i], 'Agent']
+                    ).interactive()
+                    st.altair_chart(response_chart, use_container_width=True)
+
+        with st.expander("Q (inner) Neuron Activations by Stimuli Layer", expanded=True):
+            n_col1, n_col2, n_col3 = st.columns(3)
+            neuronal_cols = ['neuronal0', 'neuronal1', 'neuronal2']
+
+            for i, col in enumerate([n_col1, n_col2, n_col3]):
+                with col:
+                    st.subheader(layer_titles[i])
+                    neuronal_chart = alt.Chart(combined_data).mark_line().encode(
+                        x=alt.X('Time', axis=alt.Axis(title="")), 
+                        y=alt.Y(neuronal_cols[i], axis=alt.Axis(title="Activation")),
+                        color=alt.Color('Agent', scale=color_scale, legend=None),
+                        tooltip=['Time', neuronal_cols[i], 'Agent']
+                    ).interactive()
+                    st.altair_chart(neuronal_chart, use_container_width=True)
+        
+        st.markdown("---") # Visual separator
+
+        with st.expander("Learning Events and Memory", expanded=True):
+            col3, col4 = st.columns(2)
             with col3:
                 st.subheader("Control Events")
                 st.text("Total number of learning events over time.")
@@ -307,8 +325,7 @@ if uploaded_file is not None:
                         st.altair_chart(learning_chart, use_container_width=True)
                     else:
                         st.warning("Please select at least one event type to display the chart.")
-            # --- MODIFICATION END ---
-            
+
             with col4:
                 st.subheader("Experience States")
                 st.text("Total number of unique memories in the output neuron (unique learning events).")
@@ -318,6 +335,7 @@ if uploaded_file is not None:
                     tooltip=['Time', 'Experience States', 'Agent']
                 ).interactive()
                 st.altair_chart(states_chart, use_container_width=True)
+        # --- MODIFICATION END ---
 
         if st.checkbox("Show Raw Data"):
             st.dataframe(combined_data)

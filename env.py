@@ -245,7 +245,7 @@ class Assay:
     """
     def __init__(self, petri_dish, num_agents=5, start_logic='random', start_positions=None, agent_archs="unit clam", assay_loadagents=""):
         steps = 1000
-        metainfo = 3
+        metainfo = 7
         self.dish = petri_dish
         
         if type(assay_loadagents) is Assay:
@@ -384,12 +384,16 @@ class Assay:
                 
                 # For AO agents, store meta history
                 agent_instance = agent_dict['agent']
-                self.meta_history[self.step, i, 0] = sum(agent_instance.astate[0, agent_instance.arch.I__flat])
-                self.meta_history[self.step, i, 1] = sum(agent_instance.astate[0, agent_instance.arch.Q__flat])
-                try: self.meta_history[self.step, i, 2] = agent_instance.neurons[agent_instance.arch.Z__flat[0]].outputs.size
+                self.meta_history[self.step, i, 0] = sum(agent_instance.astate[0, agent_instance.arch.I[0]])
+                self.meta_history[self.step, i, 1] = sum(agent_instance.astate[0, agent_instance.arch.I[1]])
+                self.meta_history[self.step, i, 2] = sum(agent_instance.astate[0, agent_instance.arch.I[2]])
+                self.meta_history[self.step, i, 3] = sum(agent_instance.astate[0, agent_instance.arch.Q[0]])
+                self.meta_history[self.step, i, 4] = sum(agent_instance.astate[0, agent_instance.arch.Q[1]])
+                self.meta_history[self.step, i, 5] = sum(agent_instance.astate[0, agent_instance.arch.Q[2]])
+                try: self.meta_history[self.step, i, 6] = agent_instance.neurons[agent_instance.arch.Z__flat[0]].outputs.size
                 except: AttributeError 
                 for c in range(self.num_learning_types):
-                    self.meta_history[self.step, i, 2+c] = getattr(agent_instance, self.agent_archs.C_types_names[c])
+                    self.meta_history[self.step, i, 7+c] = getattr(agent_instance, self.agent_archs.C_types_names[c])
 
 
     def visualize(self, agents_to_show=None, interval=200, show_paths=True, mode='window'):
@@ -463,14 +467,18 @@ class Assay:
             agent_names.append(f"Agent_{a}") # Add an agent identifier
             df = pd.DataFrame({
                 'Time': np.arange(to_step),
-                'Response to Stimuli': self.meta_history[:to_step, a, 0],
-                'Neuronal Response':   self.meta_history[:to_step, a, 1],
-                'Experience States':   self.meta_history[:to_step, a, 2],
+                'stimuli0': self.meta_history[:to_step, a, 0],
+                'stimuli1': self.meta_history[:to_step, a, 1],
+                'stimuli2': self.meta_history[:to_step, a, 2],
+                'neuronal0':   self.meta_history[:to_step, a, 3],
+                'neuronal1':   self.meta_history[:to_step, a, 4],
+                'neuronal2':   self.meta_history[:to_step, a, 5],
+                'Experience States':   self.meta_history[:to_step, a, 6],
                 'pos_x': self.history[:to_step, a, 0],
                 'pos_y': self.history[:to_step, a, 1]
             })
             for c in range(self.num_learning_types):
-                df[self.agent_archs.C_types_names[c]] = self.meta_history[:to_step, a, 2+c]
+                df[self.agent_archs.C_types_names[c]] = self.meta_history[:to_step, a, 7+c]
             agent_dfs.append(df)
         
         # Combine all agent DataFrames into a single one, and save the env layers, all in a list for easy exporting
