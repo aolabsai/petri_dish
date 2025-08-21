@@ -353,6 +353,15 @@ class Assay:
             a.C_pruning = C_pruning
             a.C_pruning_cutoff = C_pruning_cutoff
 
+
+    def pretrain_random(self, steps):
+        """Pre-train agents on random data using built-in ao_core methods; this helps give the agent a greater range of motion before lessons from instincts kick in"""
+        for i, agent_dict in enumerate(self.agents):
+            for s in range(steps):
+                agent_dict['agent'].reset_state(training=True)
+                agent_dict['agent'].reset_state()
+
+
     def run_step(self):
         """Runs a single step of the experiment for all agents."""
         self.step += 1
