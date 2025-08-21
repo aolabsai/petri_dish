@@ -112,12 +112,23 @@ if uploaded_file is not None:
         
         # Combine all agent data into a single dataframe
         full_data = pd.concat(data_to_concat, ignore_index=True)
-        # --- MODIFICATION END ---
         
         grid_size = env_data[0].shape[0]
 
         # Validate that the necessary columns exist
-        required_cols = {'Time', 'Response to Stimuli', 'Neuronal Response', 'Learning Events', 'Experience States', 'pos_x', 'pos_y', 'Agent'}
+        required_cols = {'Time', 'Response to Stimuli', 'Neuronal Response', 'Experience States', 'pos_x', 'pos_y', 'Agent'}
+        
+        # --- MODIFICATION: Dynamically find learning event columns ---
+        learning_event_cols = [col for col in full_data.columns if 'Events' in col]
+        if not learning_event_cols:
+             # Look for 'Pleasure' and 'Pain' as a fallback
+            fallback_cols = [col for col in ['Pleasure', 'Pain'] if col in full_data.columns]
+            if fallback_cols:
+                learning_event_cols = fallback_cols
+            else:
+                st.error("Upload Error: No learning event columns (e.g., ending in 'Events' or named 'Pleasure'/'Pain') found in the DataFrame.")
+                st.stop()
+            
         if not required_cols.issubset(full_data.columns):
             missing_cols = required_cols - set(full_data.columns)
             st.error(f"Upload Error: The DataFrames in the pickle file must contain the following columns: {', '.join(missing_cols)}")
@@ -216,15 +227,88 @@ if uploaded_file is not None:
                     tooltip=['Time', 'Neuronal Response', 'Agent']
                 ).interactive()
                 st.altair_chart(neuronal_chart, use_container_width=True)
+            
+            # --- MODIFICATION: Updated Control Events chart with combine option ---
             with col3:
                 st.subheader("Control Events")
-                st.text("Total number of learning events over time (when instincts were triggered).")
-                learning_chart = alt.Chart(combined_data).mark_line(interpolate='step-after').encode(
-                    x=alt.X('Time', axis=alt.Axis(title="")), y=alt.Y('Learning Events', axis=alt.Axis(title="")),
-                    color=alt.Color('Agent', scale=color_scale, legend=None),
-                    tooltip=['Time', 'Learning Events', 'Agent']
-                ).interactive()
-                st.altair_chart(learning_chart, use_container_width=True)
+                st.text("Total number of learning events over time.")
+                
+                # Check if the specific "Pleasure" and "Pain" case exists
+                is_pleasure_pain_case = (len(learning_event_cols) == 2 and set(learning_event_cols) == {'Pleasure', 'Pain'})
+                
+                combine_pleasure_pain = False
+                if is_pleasure_pain_case:
+                    combine_pleasure_pain = st.checkbox("View combined plot (Pleasure - Pain)")
+                
+                # If the checkbox is ticked, show the combined plot
+                if combine_pleasure_pain:
+                    combined_data['Combined_Events'] = combined_data['Pleasure'] - combined_data['Pain']
+                    
+                    st.text("Displaying the net of Pleasure minus Pain.")
+                    
+                    combined_chart = alt.Chart(combined_data).mark_line().encode(
+                        x=alt.X('Time', axis=alt.Axis(title="")),
+                        y=alt.Y('Combined_Events', axis=alt.Axis(title="Net Events")),
+                        color=alt.Color('Agent', scale=color_scale, legend=None),
+                        tooltip=['Time', 'Agent', 'Combined_Events']
+                    ).interactive()
+                    
+                    st.altair_chart(combined_chart, use_container_width=True)
+                
+                # Otherwise, show the original multiselect dropdown for individual event types
+                else:
+                    # Dropdown for selecting event types
+                    selected_event_types = st.multiselect(
+                        "Select control event types to display:",
+                        options=learning_event_cols,
+                        default=learning_event_cols
+                    )
+
+                    # Define line styles for different event types
+                    line_styles = [[1,0], [8, 4], [3, 3, 2, 2], [8, 4, 2, 4], [2,2]] # Solid, Dashed, Dotted, etc.
+                    style_map = {event: line_styles[i % len(line_styles)] for i, event in enumerate(learning_event_cols)}
+                    
+                    # Display the legend for line styles
+                    legend_items = []
+                    style_repr = {
+                        str([1,0]): "Solid", str([8,4]): "Dashed", str([3,3,2,2]): "Dot-Dash",
+                        str([8,4,2,4]): "Long-Dash", str([2,2]): "Dotted"
+                    }
+                    for event in selected_event_types:
+                        style_key = str(style_map.get(event, [1,0]))
+                        style_name = style_repr.get(style_key, style_key)
+                        legend_items.append(f"<b>{style_name}</b>: {event}")
+                    
+                    if legend_items:
+                        st.markdown(" | ".join(legend_items), unsafe_allow_html=True)
+
+                    if selected_event_types:
+                        # Reshape data from wide to long format for Altair
+                        learning_data_long = combined_data.melt(
+                            id_vars=['Time', 'Agent'],
+                            value_vars=selected_event_types,
+                            var_name='Event Type',
+                            value_name='Count'
+                        )
+
+                        # Create the chart
+                        learning_chart = alt.Chart(learning_data_long).mark_line(interpolate='step-after').encode(
+                            x=alt.X('Time', axis=alt.Axis(title="")),
+                            y=alt.Y('Count', axis=alt.Axis(title="Total Events")),
+                            color=alt.Color('Agent', scale=color_scale, legend=None),
+                            strokeDash=alt.StrokeDash(
+                                'Event Type',
+                                scale=alt.Scale(domain=list(style_map.keys()), range=list(style_map.values())),
+                                legend=None # Hide Altair's default legend
+                            ),
+                            tooltip=['Time', 'Agent', 'Event Type', 'Count']
+                        ).interactive()
+                        
+                        st.altair_chart(learning_chart, use_container_width=True)
+                    else:
+                        st.warning("Please select at least one event type to display the chart.")
+            # --- MODIFICATION END ---
+            
             with col4:
                 st.subheader("Experience States")
                 st.text("Total number of unique memories in the output neuron (unique learning events).")

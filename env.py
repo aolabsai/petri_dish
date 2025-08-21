@@ -245,20 +245,22 @@ class Assay:
     """
     def __init__(self, petri_dish, num_agents=5, start_logic='random', start_positions=None, agent_archs="unit clam", assay_loadagents=""):
         steps = 1000
-        metainfo = 4
+        metainfo = 3
         self.dish = petri_dish
         
         if type(assay_loadagents) is Assay:
             # load number of agents from inputted assay
+            print("-----AGENTS LOADED FROM SUPPLIED ASSAY-----")
             self.num_agents = assay_loadagents.num_agents
+            self.agent_archs = assay_loadagents.agent_archs
         else:
-            print("didn't get it")
             self.num_agents = num_agents
-        print("ASSAY NUM AGENTS --------------"+str(self.num_agents))
+            self.agent_archs = agent_archs
+        self.num_learning_types = len(self.agent_archs.arch_c)
         self.history = np.zeros((steps, self.num_agents, 2), dtype=int) # Shape: (steps, agents, (x,y))
-        self.meta_history = np.zeros((steps, self.num_agents, metainfo), dtype=object) # Shape: (steps, agents, meta_features)
+        self.meta_history = np.zeros((steps, self.num_agents, metainfo+self.num_learning_types), dtype=object) # Shape: (steps, agents, meta_features)
         
-        self._initialize_agents(start_logic, start_positions, agent_archs, assay_loadagents)
+        self._initialize_agents(start_logic, start_positions, assay_loadagents)
         self.step = 0 # Initialize step counter
 
         self.random = False # set to true to move agents randomly, not through ao.next_state, useful for debugging the UI in isolation 
@@ -272,7 +274,7 @@ class Assay:
         self.HEADINGS = {0: (-1, 0), 1: (0, 1), 2: (1, 0), 3: (0, -1)} # N, E, S, W in (y,x)
 
 
-    def _initialize_agents(self, start_logic, start_positions, agent_archs, assay_loadagents):
+    def _initialize_agents(self, start_logic, start_positions, assay_loadagents):
         if start_positions:
             positions = start_positions
         else:
@@ -298,7 +300,11 @@ class Assay:
                 # load agent object from inputted assay
                 agent = assay_loadagents.agents[i]['agent'] # loading agent from previous assay
             else:
-                agent = ao.Agent._unit() if agent_archs == "unit clam" else ao.Agent(agent_archs)
+                agent = ao.Agent(self.agent_archs)
+    
+                # setting up counters for learning events
+                for c in self.agent_archs.C_types_names:
+                    setattr(agent, c, 0)
 
             self.agents[i] = {
                 'id': i,
@@ -310,6 +316,7 @@ class Assay:
             self.history[0, i, 0] = pos[0] # x
             self.history[0, i, 1] = pos[1] # y
         
+
     def _get_agent_action(self, agent):
         if self.random:
             return np.random.choice(self.ACTIONS)
@@ -376,9 +383,10 @@ class Assay:
             agent_instance = agent_dict['agent']
             self.meta_history[self.step, i, 0] = sum(agent_instance.astate[0, agent_instance.arch.I__flat])
             self.meta_history[self.step, i, 1] = sum(agent_instance.astate[0, agent_instance.arch.Q__flat])
-            self.meta_history[self.step, i, 2] = agent_instance.activations_global_C
-            try: self.meta_history[self.step, i, 3] = agent_instance.neurons[agent_instance.arch.Z__flat[0]].outputs.size
+            try: self.meta_history[self.step, i, 2] = agent_instance.neurons[agent_instance.arch.Z__flat[0]].outputs.size
             except: AttributeError 
+            for c in range(self.num_learning_types):
+                self.meta_history[self.step, i, 2+c] = getattr(agent_instance, self.agent_archs.C_types_names[c])
 
     def visualize(self, agents_to_show=None, interval=200, show_paths=True, mode='window'):
         # This function seems mostly fine, but the history slicing needs to be updated.
@@ -453,11 +461,12 @@ class Assay:
                 'Time': np.arange(to_step),
                 'Response to Stimuli': self.meta_history[:to_step, a, 0],
                 'Neuronal Response':   self.meta_history[:to_step, a, 1],
-                'Learning Events':     self.meta_history[:to_step, a, 2],
-                'Experience States':   self.meta_history[:to_step, a, 3],
+                'Experience States':   self.meta_history[:to_step, a, 2],
                 'pos_x': self.history[:to_step, a, 0],
                 'pos_y': self.history[:to_step, a, 1]
             })
+            for c in range(self.num_learning_types):
+                df[self.agent_archs.C_types_names[c]] = self.meta_history[:to_step, a, 2+c]
             agent_dfs.append(df)
         
         # Combine all agent DataFrames into a single one, and save the env layers, all in a list for easy exporting
