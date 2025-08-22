@@ -16,13 +16,6 @@ from env import PetriDish, Assay
 env_size = 100
 env_input_layers = 3
 stimuli_intensity = 1
-# stimuli_intensity = 3
-
-            #   - 'quadrant': str, one of 'top-left', 'top-right', 'bottom-left', 'bottom-right'.
-            #   - 'peak': str (default 'center'), highest concentration point. 'center' or 'corner'.
-            #   - 'diffusion': str (default 'linear'), gradient type. 'linear' or 'radial'.
-            #   - 'min_p': float (default 0.0), minimum probability in the gradient.
-            #   - 'max_p': float (default 1.0), maximum probability in the gradient.
 
 
 # set distribution of stimuli in environment
@@ -34,55 +27,69 @@ stimuli_distribution = [
 ]
 
 
-stimuli_distribution = [
-    # Layer 0: A complex layer with three active quadrants
-    {
-        'type': 'quadrant',
-        'quadrant_setups': [
-            # Setup for the top-left quadrant
-            {
-                'quadrant': 'top-left',
-                'peak': 'corner',          # Highest concentration is at the corner (0,0)
-                'diffusion': 'linear',     # Gradient decreases linearly towards the center
-                'min_p': 0.1,              # Probability at the center boundary
-                'max_p': 0.9               # Probability at the far corner
-            },
-            # Setup for the bottom-right quadrant
-            {
-                'quadrant': 'bottom-right',
-                'peak': 'center',          # Highest concentration is near the center (0.5, 0.5)
-                'diffusion': 'radial',     # Gradient decreases radially towards the corner
-                'min_p': 0.0,              # Probability at the corner boundary
-                'max_p': 0.8               # Probability at the center
-            },
-            # Setup for the top-right quadrant
-            {
-                'quadrant': 'top-right',
-                'peak': 'center',
-                'diffusion': 'linear',
-                'min_p': 0.2,
-                'max_p': 0.5
-            }
-            # The bottom-left quadrant is left undefined, so it will have zero stimuli.
-        ]
-    },
+# stimuli_distribution = [
+#     # Layer 0: A complex layer with three active quadrants
+#     {
+#         'type': 'quadrant',
+#         # 'start_pos': (0.25, 0.25), # Active in a central square
+#         # 'end_pos': (0.75, 0.75),
+#         'quadrant_setups': [
+#             # Setup for the top-left quadrant
+#             {
+#                 'quadrant': 'top-left',
+#                 'peak': 'corner',          # Highest concentration is at the corner (0,0)
+#                 'diffusion': 'linear',     # Gradient decreases linearly towards the center
+#                 'min_p': 0.1,              # Probability at the center boundary
+#                 'max_p': 0.9               # Probability at the far corner
+#             },
+#             # Setup for the bottom-right quadrant
+#             {
+#                 'quadrant': 'bottom-right',
+#                 'peak': 'center',          # Highest concentration is near the center (0.5, 0.5)
+#                 'diffusion': 'radial',     # Gradient decreases radially towards the corner
+#                 'min_p': 0.0,              # Probability at the corner boundary
+#                 'max_p': 0.8               # Probability at the center
+#             },
+#             # Setup for the top-right quadrant
+#             {
+#                 'quadrant': 'top-right',
+#                 'peak': 'center',
+#                 'diffusion': 'linear',
+#                 'min_p': 0.2,
+#                 'max_p': 0.5
+#             }
+#             # The bottom-left quadrant is left undefined, so it will have zero stimuli.
+#         ]
+#     },
     
-    # Layer 1: A simple vertical linear gradient for comparison
-    {
-        'type': 'linear', 
-        'direction': 'vertical-downup', 
-        'min_p': 0.0, 
-        'max_p': 0.5
-    },
+#     # Layer 1: A simple vertical linear gradient for comparison
+#     # {
+#     #     'type': 'linear', 
+#     #     'direction': 'vertical-downup', 
+#     #     'min_p': 0.0, 
+#     #     'max_p': 0.5
+#     #     'start_pos': (0.0, 0.0), # Define the active area's top-left corner
+#     #     'end_pos': (0.5, 0.5)    # Define the active area's bottom-right corner
+#     # },
+#     {
+#         'type': 'radial',
+#         'position': 'top-left',  # Peak concentration at the top-left of the active area
+#         'min_p': 0.0,
+#         'max_p': 1.0,
+#         # 'start_pos': (0.0, 0.0), # Define the active area's top-left corner
+#         'end_pos': (0.5, 0.75)    # Define the active area's bottom-right corner
+#     },
     
-    # Layer 2: A simple radial gradient for comparison
-    {
-        'type': 'radial', 
-        'position': 'bottom-left', 
-        'min_p': 0.0, 
-        'max_p': 0.7
-    }
-]
+#     # Layer 2: A simple radial gradient for comparison
+#     {
+#         'type': 'linear',
+#         'direction': 'horizontal-rightleft',
+#         'min_p': 0.1,
+#         'max_p': 0.8,
+#         'start_pos': (0.25, 0.25), # Active in a central square
+#         'end_pos': (0.75, 0.75)
+#     }
+# ]
 
 # create petri dish object, to be used as a param in assay below
 dish = PetriDish(size=env_size, num_layers=env_input_layers, distributions=stimuli_distribution, stimuli_intensity=stimuli_intensity)

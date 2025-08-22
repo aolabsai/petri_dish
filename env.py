@@ -24,31 +24,22 @@ class PetriDish:
         - num_layers: int, the number of layers (each representing a different stimulus).
         - distributions: list of dicts, parameters for the distribution of each layer.
           Each dict can have:
-            - 'type': 'linear', 'radial', or 'quadrant'
+            - 'type': 'linear', 'radial', or 'quadrant'.
+            - 'start_pos': tuple (x, y), optional. The top-left corner of the active distribution area (range [0,1]). Defaults to (0,0).
+            - 'end_pos': tuple (x, y), optional. The bottom-right corner of the active distribution area (range [0,1]). Defaults to (1,1).
             - For 'linear':
-              - 'direction': str, 'horizontal-rightleft', 'horizontal-leftright', 'vertical-downup', 'vertical-updown'
-              - 'min_p': float (default 0.0), minimum probability
-              - 'max_p': float (default 1.0), maximum probability
+              - 'direction': str, 'horizontal-rightleft', 'horizontal-leftright', 'vertical-downup', 'vertical-updown'.
+              - 'min_p', 'max_p': float, probability range for the gradient.
             - For 'radial':
-              - 'position': str or tuple (float, float), determines the location of the highest concentration.
-                - If tuple: specific coordinate (x, y) in [0,1]
-                - If str: 'center' (default), 'random', 'top-left', 'top-right', 'bottom-left', 'bottom-right'
-              - 'min_p': float (default 0.0), probability at maximum distance
-              - 'max_p': float (default 1.0), probability at the highest point
+              - 'position': str or tuple, determines the location of the highest concentration within the active area.
+              - 'min_p', 'max_p': float, probability range for the gradient.
             - For 'quadrant':
-              - This type can be defined in two ways:
-              1. Single Quadrant (Backward Compatible):
-                 - 'quadrant': str, one of 'top-left', 'top-right', 'bottom-left', 'bottom-right'.
-                 - 'peak': str (default 'center'), highest concentration point. 'center' or 'corner'.
-                 - 'diffusion': str (default 'linear'), gradient type. 'linear' or 'radial'.
-                 - 'min_p': float (default 0.0), minimum probability in the gradient.
-                 - 'max_p': float (default 1.0), maximum probability in the gradient.
-              2. Multi-Quadrant:
-                 - 'quadrant_setups': list of dicts. Each dict defines one quadrant and must have a 'quadrant' key.
-                   Each dict can also have its own 'peak', 'diffusion', 'min_p', and 'max_p' keys.
+              - Can be a single setup or a list in 'quadrant_setups'.
+              - 'quadrant': str, one of 'top-left', 'top-right', 'bottom-left', 'bottom-right'.
+              - 'peak': str, 'center' or 'corner' of the quadrant.
+              - 'diffusion': str, 'linear' or 'radial'.
+              - 'min_p', 'max_p': float, probability range for the gradient.
         - stimuli_intensity: int (default 9), the maximum intensity of a stimulus at a point (range from 0 to n).
-
-          If None, defaults to three example distributions.
         """
         if distributions is None:
             distributions = [
@@ -98,35 +89,59 @@ class PetriDish:
         return cx, cy
 
     def _get_p_grid(self, dist):
+        # Get global distribution parameters
         t = dist['type']
         min_p_global = dist.get('min_p', 0.0) 
         max_p_global = dist.get('max_p', 1.0)
+        
+        # --- Handle active area defined by start_pos and end_pos ---
+        start_pos = dist.get('start_pos', (0, 0))
+        end_pos = dist.get('end_pos', (1, 1))
+        sx, sy = start_pos
+        ex, ey = end_pos
+        
+        if not (0 <= sx < ex <= 1 and 0 <= sy < ey <= 1):
+            raise ValueError(f"Invalid start/end positions: start={start_pos}, end={end_pos}. Must satisfy 0 <= start < end <= 1.")
+
+        # Create a mask for the active area
+        active_mask = (self.X >= sx) & (self.X <= ex) & (self.Y >= sy) & (self.Y <= ey)
+        
+        # Rescale coordinates within the active area to a [0, 1] range
+        # This allows the distribution logic to work correctly within the bounded area.
+        width = ex - sx
+        height = ey - sy
+        X_scaled = (self.X - sx) / width if width > 0 else np.full_like(self.X, 0.5) # Avoid division by zero
+        Y_scaled = (self.Y - sy) / height if height > 0 else np.full_like(self.Y, 0.5)
+        
+        # --- Calculate probability grid based on distribution type ---
+        p_grid = np.zeros_like(self.X) # Initialize with zero probability
+
         if t == 'linear':
             direction = dist.get('direction')
             if direction == 'horizontal-rightleft':
-                return min_p_global + (max_p_global - min_p_global) * self.X
-            if direction == 'horizontal-leftright':
-                return max_p_global - (max_p_global - min_p_global) * self.X
-            if direction == 'vertical-downup':
-                return min_p_global + (max_p_global - min_p_global) * self.Y
+                p_grid = min_p_global + (max_p_global - min_p_global) * X_scaled
+            elif direction == 'horizontal-leftright':
+                p_grid = max_p_global - (max_p_global - min_p_global) * X_scaled
+            elif direction == 'vertical-downup':
+                p_grid = min_p_global + (max_p_global - min_p_global) * Y_scaled
             elif direction == 'vertical-updown':
-                return max_p_global - (max_p_global - min_p_global) * self.Y
+                p_grid = max_p_global - (max_p_global - min_p_global) * Y_scaled
             else:
-                raise ValueError("Direction must be 'horizontal-rightleft' / 'horizontal-leftright'  or 'vertical-downup' / 'vertical-updown'")
+                raise ValueError("Direction must be 'horizontal-rightleft'/'horizontal-leftright' or 'vertical-downup'/'vertical-updown'")
+        
         elif t == 'radial':
             cx, cy = self._get_position(dist)
-            dist_grid = np.sqrt((self.X - cx)**2 + (self.Y - cy)**2)
-            max_dist = np.max(dist_grid)
+            # Use scaled coordinates for distance calculation
+            dist_grid = np.sqrt((X_scaled - cx)**2 + (Y_scaled - cy)**2)
+            max_dist = np.max(dist_grid[active_mask]) if np.any(active_mask) else 1.0
             dist_norm = dist_grid / max_dist if max_dist > 0 else np.zeros_like(dist_grid)
-            return max_p_global + (min_p_global - max_p_global) * dist_norm
+            p_grid = max_p_global + (min_p_global - max_p_global) * dist_norm
+        
         elif t == 'quadrant':
-            final_p_grid = np.zeros_like(self.X)
-            
-            # Check for a list of quadrant setups, otherwise use the main dict for backward compatibility
             if 'quadrant_setups' in dist and isinstance(dist['quadrant_setups'], list):
                 setups = dist['quadrant_setups']
             else:
-                setups = [dist] # Treat the main dictionary as a single setup
+                setups = [dist]
 
             for setup in setups:
                 min_p = setup.get('min_p', min_p_global)
@@ -135,17 +150,18 @@ class PetriDish:
                 peak = setup.get('peak', 'center').lower()
                 diffusion = setup.get('diffusion', 'linear').lower()
 
+                # Quadrant masks are now applied to the rescaled coordinates
                 if quadrant_str == 'top-left':
-                    mask = (self.X <= 0.5) & (self.Y <= 0.5)
+                    quad_mask = (X_scaled <= 0.5) & (Y_scaled <= 0.5)
                     corner_point = (0.0, 0.0)
                 elif quadrant_str == 'top-right':
-                    mask = (self.X > 0.5) & (self.Y <= 0.5)
+                    quad_mask = (X_scaled > 0.5) & (Y_scaled <= 0.5)
                     corner_point = (1.0, 0.0)
                 elif quadrant_str == 'bottom-left':
-                    mask = (self.X <= 0.5) & (self.Y > 0.5)
+                    quad_mask = (X_scaled <= 0.5) & (Y_scaled > 0.5)
                     corner_point = (0.0, 1.0)
                 elif quadrant_str == 'bottom-right':
-                    mask = (self.X > 0.5) & (self.Y > 0.5)
+                    quad_mask = (X_scaled > 0.5) & (Y_scaled > 0.5)
                     corner_point = (1.0, 1.0)
                 else:
                     raise ValueError("Quadrant must be one of 'top-left', 'top-right', 'bottom-left', 'bottom-right'.")
@@ -156,35 +172,37 @@ class PetriDish:
                     v = (corner_point[0] - center_point[0], corner_point[1] - center_point[1])
                     v_dot_v = v[0]**2 + v[1]**2
                     if v_dot_v == 0:
-                        dist_norm = np.zeros_like(self.X)
+                        dist_norm = np.zeros_like(X_scaled)
                     else:
-                        u_x = self.X - center_point[0]
-                        u_y = self.Y - center_point[1]
+                        u_x = X_scaled - center_point[0]
+                        u_y = Y_scaled - center_point[1]
                         proj_grid = (u_x * v[0] + u_y * v[1]) / v_dot_v
                         dist_norm = np.clip(proj_grid, 0, 1)
                 elif diffusion == 'radial':
-                    dist_from_center = np.sqrt((self.X - center_point[0])**2 + (self.Y - center_point[1])**2)
+                    dist_from_center = np.sqrt((X_scaled - center_point[0])**2 + (Y_scaled - center_point[1])**2)
                     max_dist_to_corner = np.sqrt((corner_point[0] - center_point[0])**2 + (corner_point[1] - center_point[1])**2)
                     if max_dist_to_corner == 0:
                         dist_norm = np.zeros_like(dist_from_center)
                     else:
-                        dist_norm = dist_from_center / max_dist_to_corner
-                        dist_norm = np.clip(dist_norm, 0, 1)
+                        dist_norm = np.clip(dist_from_center / max_dist_to_corner, 0, 1)
                 else:
                     raise ValueError("Diffusion for quadrant must be 'linear' or 'radial'.")
 
                 if peak == 'center':
-                    p_grid = max_p - (max_p - min_p) * dist_norm
+                    quad_p_grid = max_p - (max_p - min_p) * dist_norm
                 elif peak == 'corner':
-                    p_grid = min_p + (max_p - min_p) * dist_norm
+                    quad_p_grid = min_p + (max_p - min_p) * dist_norm
                 else:
                     raise ValueError("Peak for quadrant must be 'center' or 'corner'.")
 
-                final_p_grid[mask] = p_grid[mask]
-            
-            return final_p_grid
+                # Combine the quadrant mask with the overall active area mask
+                p_grid[quad_mask & active_mask] = quad_p_grid[quad_mask & active_mask]
         else:
             raise ValueError(f"Unknown distribution type: {t}")
+
+        # Ensure probability is zero outside the active area and clip to valid range [0, 1]
+        final_p_grid = np.where(active_mask, p_grid, 0)
+        return np.clip(final_p_grid, 0, 1)
 
     def get_stimuli(self, coordinates, shape='square', radius=0, mode='count', weighting='uniform', sigma=None):
         """
@@ -319,6 +337,8 @@ class PetriDish:
         
         plt.tight_layout()
         plt.show()
+
+        
 
 class Assay:
     """
