@@ -1,8 +1,5 @@
 import streamlit as st
 import numpy as np
-import matplotlib.pyplot as plt
-import colorsys
-from matplotlib.colors import ListedColormap
 from streamlit_drawable_canvas import st_canvas
 from PIL import Image
 

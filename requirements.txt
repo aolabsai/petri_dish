@@ -1,0 +1,29 @@
+# petridish class
+numpy
+matplotlib
+colorsys
+
+# assay class
+numpy
+pandas
+matplotlib
+colorsys
+IPython
+
+# env app
+numpy
+streamlit
+streamlit_drawable_canvas
+PIL
+
+# assay app
+numpy
+streamlit
+pandas
+altair
+colorsys
+matplotlib.pyplot
+
+ao_core
+
+
