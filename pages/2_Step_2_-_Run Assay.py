@@ -49,15 +49,22 @@ else:
         with sim_col2:
             start_logic_input = st.selectbox("Agent Starting Positions", options=['random', 'center', 'cardinal', 'quadrants', 'corners'], index=0, help="Choose the initial placement pattern for the agents.")
         with sim_col3:
-            steps_input = st.number_input("Simulation Steps", min_value=10, max_value=1000, value=100, help="Set the total number of time steps for the simulation.")
+            steps_input = st.slider("Simulation Steps", min_value=1, max_value=1000, value=10, help="Set the total number of time steps for the simulation.")
 
-        debug_mode_checkbox = st.checkbox("Enable Debug Mode", value=False, help='If checked, agents will move randomly (sets agent_archs="random").')
+        debug_mode_checkbox = st.checkbox("Enable debug mode", value=False, help='If checked, agents will move randomly (sets agent_archs="random").')
+        reuse_agents_from_assay = []
+        if "assay" in st.session_state: reuse_agents_from_assay = st.checkbox("Reuse agents from previous assay", value=False, help="If checked, assay will be run with agents from previous trial. WNN agent are natively stateful with memories are persistent across assays.")
 
         if st.button("▶️ Run Simulation"):
             with st.spinner(f"Running simulation for {steps_input} steps..."):
                 petri_dish = st.session_state.dish
                 agent_archs_param = "random" if debug_mode_checkbox else updateArch(st.session_state.stimuli_intensity) # the arch that is imported from the "archs" folder
-                assay = Assay(petri_dish=petri_dish, num_agents=num_agents_input, start_logic=start_logic_input, agent_archs=agent_archs_param, steps=steps_input)
+                
+                if reuse_agents_from_assay and "assay" in st.session_state:
+                    assay_loadagents = st.session_state.assay
+                else:
+                    assay_loadagents = ""
+                assay = Assay(petri_dish=petri_dish, num_agents=num_agents_input, start_logic=start_logic_input, agent_archs=agent_archs_param, steps=steps_input, assay_loadagents=assay_loadagents)
                 assay.set_agent_hyperparameters(
                     C_impression_initial = 5, # strength of impression when first added to neuron from C learning event
                     C_impression_match = 2, # increment of impression if accessed by neuron during inference
@@ -67,7 +74,8 @@ else:
                 assay.INSTINCTS = True # to activate training, let's gooooo
                 assay.run_step(steps=steps_input)
                 simulation_data = assay.export_data()
-                st.session_state['simulation_data'] = simulation_data
+                st.session_state.simulation_data = simulation_data
+                st.session_state.assay = assay
                 st.success("Simulation complete! Results are displayed below.")
 
 
