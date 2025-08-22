@@ -15,7 +15,7 @@ import ao_core as ao
 
 
 class PetriDish:
-    def __init__(self, size=100, num_layers=3, distributions=None, stimuli_intensity=1):
+    def __init__(self, size=100, num_layers=3, distributions=None, stimuli_intensity=9):
         """
         Initialize the PetriDish simulation.
 
@@ -24,18 +24,28 @@ class PetriDish:
         - num_layers: int, the number of layers (each representing a different stimulus).
         - distributions: list of dicts, parameters for the distribution of each layer.
           Each dict can have:
-            - 'type': 'linear' or 'radial'
+            - 'type': 'linear', 'radial', or 'quadrant'
             - For 'linear':
-              - 'direction': 'horizontal' or 'vertical'
+              - 'direction': str, 'horizontal-rightleft', 'horizontal-leftright', 'vertical-downup', 'vertical-updown'
               - 'min_p': float (default 0.0), minimum probability
               - 'max_p': float (default 1.0), maximum probability
             - For 'radial':
-              - 'position': str or tuple (float, float), optional. Determines the location of the highest concentration point.
+              - 'position': str or tuple (float, float), determines the location of the highest concentration.
                 - If tuple: specific coordinate (x, y) in [0,1]
                 - If str: 'center' (default), 'random', 'top-left', 'top-right', 'bottom-left', 'bottom-right'
-              - 'center': tuple (float, float), optional (backward compatibility, use 'position' instead)
               - 'min_p': float (default 0.0), probability at maximum distance
               - 'max_p': float (default 1.0), probability at the highest point
+            - For 'quadrant':
+              - This type can be defined in two ways:
+              1. Single Quadrant (Backward Compatible):
+                 - 'quadrant': str, one of 'top-left', 'top-right', 'bottom-left', 'bottom-right'.
+                 - 'peak': str (default 'center'), highest concentration point. 'center' or 'corner'.
+                 - 'diffusion': str (default 'linear'), gradient type. 'linear' or 'radial'.
+                 - 'min_p': float (default 0.0), minimum probability in the gradient.
+                 - 'max_p': float (default 1.0), maximum probability in the gradient.
+              2. Multi-Quadrant:
+                 - 'quadrant_setups': list of dicts. Each dict defines one quadrant and must have a 'quadrant' key.
+                   Each dict can also have its own 'peak', 'diffusion', 'min_p', and 'max_p' keys.
         - stimuli_intensity: int (default 9), the maximum intensity of a stimulus at a point (range from 0 to n).
 
           If None, defaults to three example distributions.
@@ -89,18 +99,18 @@ class PetriDish:
 
     def _get_p_grid(self, dist):
         t = dist['type']
-        min_p = dist.get('min_p', 0.0) # not sure why there is a ,0 and ,1 here in min and max_p
-        max_p = dist.get('max_p', 1.0)
+        min_p_global = dist.get('min_p', 0.0) 
+        max_p_global = dist.get('max_p', 1.0)
         if t == 'linear':
             direction = dist.get('direction')
             if direction == 'horizontal-rightleft':
-                return min_p + (max_p - min_p) * self.X
+                return min_p_global + (max_p_global - min_p_global) * self.X
             if direction == 'horizontal-leftright':
-                return max_p - (max_p - min_p) * self.X
+                return max_p_global - (max_p_global - min_p_global) * self.X
             if direction == 'vertical-downup':
-                return min_p + (max_p - min_p) * self.Y
+                return min_p_global + (max_p_global - min_p_global) * self.Y
             elif direction == 'vertical-updown':
-                return max_p - (max_p - min_p) * self.Y
+                return max_p_global - (max_p_global - min_p_global) * self.Y
             else:
                 raise ValueError("Direction must be 'horizontal-rightleft' / 'horizontal-leftright'  or 'vertical-downup' / 'vertical-updown'")
         elif t == 'radial':
@@ -108,11 +118,75 @@ class PetriDish:
             dist_grid = np.sqrt((self.X - cx)**2 + (self.Y - cy)**2)
             max_dist = np.max(dist_grid)
             dist_norm = dist_grid / max_dist if max_dist > 0 else np.zeros_like(dist_grid)
-            return max_p + (min_p - max_p) * dist_norm
+            return max_p_global + (min_p_global - max_p_global) * dist_norm
+        elif t == 'quadrant':
+            final_p_grid = np.zeros_like(self.X)
+            
+            # Check for a list of quadrant setups, otherwise use the main dict for backward compatibility
+            if 'quadrant_setups' in dist and isinstance(dist['quadrant_setups'], list):
+                setups = dist['quadrant_setups']
+            else:
+                setups = [dist] # Treat the main dictionary as a single setup
+
+            for setup in setups:
+                min_p = setup.get('min_p', min_p_global)
+                max_p = setup.get('max_p', max_p_global)
+                quadrant_str = setup.get('quadrant', 'top-right').lower()
+                peak = setup.get('peak', 'center').lower()
+                diffusion = setup.get('diffusion', 'linear').lower()
+
+                if quadrant_str == 'top-left':
+                    mask = (self.X <= 0.5) & (self.Y <= 0.5)
+                    corner_point = (0.0, 0.0)
+                elif quadrant_str == 'top-right':
+                    mask = (self.X > 0.5) & (self.Y <= 0.5)
+                    corner_point = (1.0, 0.0)
+                elif quadrant_str == 'bottom-left':
+                    mask = (self.X <= 0.5) & (self.Y > 0.5)
+                    corner_point = (0.0, 1.0)
+                elif quadrant_str == 'bottom-right':
+                    mask = (self.X > 0.5) & (self.Y > 0.5)
+                    corner_point = (1.0, 1.0)
+                else:
+                    raise ValueError("Quadrant must be one of 'top-left', 'top-right', 'bottom-left', 'bottom-right'.")
+
+                center_point = (0.5, 0.5)
+                
+                if diffusion == 'linear':
+                    v = (corner_point[0] - center_point[0], corner_point[1] - center_point[1])
+                    v_dot_v = v[0]**2 + v[1]**2
+                    if v_dot_v == 0:
+                        dist_norm = np.zeros_like(self.X)
+                    else:
+                        u_x = self.X - center_point[0]
+                        u_y = self.Y - center_point[1]
+                        proj_grid = (u_x * v[0] + u_y * v[1]) / v_dot_v
+                        dist_norm = np.clip(proj_grid, 0, 1)
+                elif diffusion == 'radial':
+                    dist_from_center = np.sqrt((self.X - center_point[0])**2 + (self.Y - center_point[1])**2)
+                    max_dist_to_corner = np.sqrt((corner_point[0] - center_point[0])**2 + (corner_point[1] - center_point[1])**2)
+                    if max_dist_to_corner == 0:
+                        dist_norm = np.zeros_like(dist_from_center)
+                    else:
+                        dist_norm = dist_from_center / max_dist_to_corner
+                        dist_norm = np.clip(dist_norm, 0, 1)
+                else:
+                    raise ValueError("Diffusion for quadrant must be 'linear' or 'radial'.")
+
+                if peak == 'center':
+                    p_grid = max_p - (max_p - min_p) * dist_norm
+                elif peak == 'corner':
+                    p_grid = min_p + (max_p - min_p) * dist_norm
+                else:
+                    raise ValueError("Peak for quadrant must be 'center' or 'corner'.")
+
+                final_p_grid[mask] = p_grid[mask]
+            
+            return final_p_grid
         else:
             raise ValueError(f"Unknown distribution type: {t}")
 
-    def get_stimuli(self, coordinates, shape='square', radius=1, mode='count', weighting='uniform', sigma=None):
+    def get_stimuli(self, coordinates, shape='square', radius=0, mode='count', weighting='uniform', sigma=None):
         """
         Get stimuli values at or around a given coordinate.
 
@@ -245,7 +319,6 @@ class PetriDish:
         
         plt.tight_layout()
         plt.show()
-
 
 class Assay:
     """
