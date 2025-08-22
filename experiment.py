@@ -15,13 +15,13 @@ from env import PetriDish, Assay
 # size of env (a square)
 env_size = 100
 env_input_layers = 3
-stimuli_intensity = 1
+stimuli_intensity = 9
 
 
 # set distribution of stimuli in environment
 stimuli_distribution = [
-    {'type': 'quadrant', 'quadrant': 'bottom-right', 'peak': 'corner', 'diffusion': 'linear', 'min_p': 0, 'max_p': 1},
-    # {'type': 'linear', 'direction': 'horizontal-rightleft', 'min_p': 0, 'max_p': 1},
+    # {'type': 'quadrant', 'quadrant': 'bottom-right', 'peak': 'corner', 'diffusion': 'linear', 'min_p': 0, 'max_p': 1},
+    {'type': 'linear', 'direction': 'horizontal-rightleft', 'min_p': 0, 'max_p': 1},
     {'type': 'linear', 'direction': 'horizontal-rightleft', 'min_p': 0, 'max_p': 1},
     {'type': 'linear', 'direction': 'horizontal-leftright', 'min_p': 0, 'max_p': 1}
 ]
@@ -183,7 +183,7 @@ all_data = assay.export_data()
 
 
 # View particular agent / neuron
-num_agent = 0 # if of agent in assay
+num_agent = 78 # if of agent in assay
 agent = assay.agents[num_agent]["agent"]
 # View particular neuron of agent
 neuron = agent.neurons[agent.arch.Z__flat[0]]
