@@ -45,22 +45,20 @@ else:
         
         sim_col1, sim_col2, sim_col3 = st.columns(3)
         with sim_col1:
-            num_agents_input = st.slider("Number of Agents", min_value=1, max_value=100, value=10, help="Select the number of agents to include in the simulation.")
+            num_agents_input = st.slider("Number of Agents", min_value=1, max_value=100, value=10, help="Select the number of agents to include in the simulation.", disabled=st.session_state.reuse_agents_from_assay)
         with sim_col2:
             start_logic_input = st.selectbox("Agent Starting Positions", options=['random', 'center', 'cardinal', 'quadrants', 'corners'], index=0, help="Choose the initial placement pattern for the agents.")
         with sim_col3:
             steps_input = st.slider("Simulation Steps", min_value=1, max_value=1000, value=10, help="Set the total number of time steps for the simulation.")
 
         debug_mode_checkbox = st.checkbox("Enable debug mode", value=False, help='If checked, agents will move randomly (sets agent_archs="random").')
-        reuse_agents_from_assay = []
-        if "assay" in st.session_state: reuse_agents_from_assay = st.checkbox("Reuse agents from previous assay", value=False, help="If checked, assay will be run with agents from previous trial. WNN agent are natively stateful with memories are persistent across assays.")
-
+        if "assay" in st.session_state: st.session_state.reuse_agents_from_assay = st.checkbox("Reuse agents from previous assay", value=False, help="If checked, assay will be run with agents from previous trial. WNN agent are natively stateful with memories are persistent across assays.")
         if st.button("▶️ Run Simulation"):
             with st.spinner(f"Running simulation for {steps_input} steps..."):
                 petri_dish = st.session_state.dish
                 agent_archs_param = "random" if debug_mode_checkbox else updateArch(st.session_state.stimuli_intensity) # the arch that is imported from the "archs" folder
                 
-                if reuse_agents_from_assay and "assay" in st.session_state:
+                if st.session_state.reuse_agents_from_assay and "assay" in st.session_state:
                     assay_loadagents = st.session_state.assay
                 else:
                     assay_loadagents = ""
