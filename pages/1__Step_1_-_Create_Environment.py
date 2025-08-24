@@ -28,14 +28,14 @@ with st.sidebar:
         new_layer = {'type': 'linear', 'direction': 'horizontal-rightleft', 'min_p': 0.0, 'max_p': 1.0, 'start_pos': (0.0, 0.0), 'end_pos': (1.0, 1.0)}
         st.session_state.distributions.append(new_layer)
         
-    st.header("Export Environment")
-    st.write("Save the current setup list to a pickle file.")
-    if st.session_state.distributions:
-        export_dish = PetriDish(
-            size=grid_size, 
-            distributions=st.session_state.distributions, 
-            stimuli_intensity=st.session_state.stimuli_intensity
-        )
+    # st.header("Export Environment")
+    # st.write("Save the current setup list to a pickle file.")
+    # if st.session_state.distributions:
+    #     export_dish = PetriDish(
+    #         size=grid_size, 
+    #         distributions=st.session_state.distributions, 
+    #         stimuli_intensity=st.session_state.stimuli_intensity
+    #     )
         # # Create a deep copy for serialization to avoid including the large 'custom_mask' array
         # export_distributions = []
         # for dist in st.session_state.distributions:

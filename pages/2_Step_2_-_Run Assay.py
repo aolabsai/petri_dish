@@ -35,6 +35,7 @@ if 'dish' not in st.session_state:
 
 if not st.session_state.dish:
     st.info("⬅️ Go to the env page to set an env first.")
+    st.page_link("pages/1__Step_1_-_Create_Environment.py", label=" Set your environment.")
 else:
 
     with st.expander("Run a New Simulation", expanded=True):
