@@ -21,62 +21,78 @@ st.set_page_config(
 
 # --- STREAMLIT APP UI AND LOGIC ---
 
-st.sidebar.title("Controls")
-uploaded_file = st.sidebar.file_uploader(
-    "Upload experiment data",
-    type=["pkl"],
-    help="Upload a pickle file containing agent experiment data."
-)
+# st.sidebar.title("Controls")
+# uploaded_file = st.sidebar.file_uploader(
+#     "Upload experiment data",
+#     type=["pkl"],
+#     help="Upload a pickle file containing agent experiment data."
+# )
 st.title("Continuous Learning Benchmark: Petri Dish Simulation")
 
 # --- Initialize Session State ---
 if 'dish' not in st.session_state:
     st.session_state.dish = []
 
-
 if not st.session_state.dish:
     st.info("⬅️ Go to the env page to set an env first.")
+    st.page_link("pages/1__Step_1_-_Create_Environment.py", label=" Set your environment.")
 else:
 
     with st.expander("Run a New Simulation", expanded=True):
         st.markdown("""
         Configure and run a new simulation. The results will be displayed in the views below.
         """)
+        debug_mode_checkbox = st.checkbox("Enable debug mode", value=False, help='If checked, agents will move randomly (sets agent_archs="random").')
+        reuse_agents_from_assay = st.checkbox("Reuse agents from previous assay", value=False, help="If checked, assay will be run with agents from previous trial. WNN agent are natively stateful with memories are persistent across assays.", disabled="assay" not in st.session_state)
         
         sim_col1, sim_col2, sim_col3 = st.columns(3)
         with sim_col1:
-            num_agents_input = st.slider("Number of Agents", min_value=1, max_value=100, value=10, help="Select the number of agents to include in the simulation.")
+            num_agents_input = st.slider("Number of Agents", min_value=1, max_value=100, value=10, help="Select the number of agents to include in the simulation.", disabled=reuse_agents_from_assay)
         with sim_col2:
             start_logic_input = st.selectbox("Agent Starting Positions", options=['random', 'center', 'cardinal', 'quadrants', 'corners'], index=0, help="Choose the initial placement pattern for the agents.")
         with sim_col3:
             steps_input = st.slider("Simulation Steps", min_value=1, max_value=1000, value=10, help="Set the total number of time steps for the simulation.")
 
-        debug_mode_checkbox = st.checkbox("Enable debug mode", value=False, help='If checked, agents will move randomly (sets agent_archs="random").')
-        reuse_agents_from_assay = []
-        if "assay" in st.session_state: reuse_agents_from_assay = st.checkbox("Reuse agents from previous assay", value=False, help="If checked, assay will be run with agents from previous trial. WNN agent are natively stateful with memories are persistent across assays.")
+    with st.expander("Set Agent-level hyperparameters:", expanded=False):
+        st.markdown("""
+        Neurons' lookup tables maintain a record of how often each row is used for inference during CGA (in ao.agent.neuron.c_info). This information is used to prune lookup tables so that stale, unused rows are deleted, the desired emergent (or agent-level affect) being the "forgetting" component of classical conditioning. Set those parameters below:
+        """)
+        
+        sim_col1, sim_col2, sim_col3 = st.columns(3)
+        with sim_col1:
+            C_impression_initial = st.number_input("Initial learning experience impression strength", min_value=1, max_value=100, value=5, help="The number added to the memory'") # strength of impression when first added to neuron from C learning event
+            C_impression_match = st.number_input("Impression increment if lookup match", min_value=1, max_value=C_impression_initial, value=2, help="The number incremented when there is a lookup match")  # increment of impression if accessed by neuron during inference
+            C_pruning = st.number_input("Impression decrement for all other rows that did not match", min_value=1, max_value=C_impression_match, value=1, help="The number decremented when no lookup match") # decrement of impression in C_info if not accessed by neuron during inference
+            C_pruning_cutoff = st.number_input("Number below which memories are deleted from neurons' lookup tables", min_value=1, max_value=100, value=1, help="Cutoff value below which memories are deleted") # value below which impressions are pruned from neuron)
 
-        if st.button("▶️ Run Simulation"):
-            with st.spinner(f"Running simulation for {steps_input} steps..."):
-                petri_dish = st.session_state.dish
-                agent_archs_param = "random" if debug_mode_checkbox else updateArch(st.session_state.stimuli_intensity) # the arch that is imported from the "archs" folder
-                
-                if reuse_agents_from_assay and "assay" in st.session_state:
-                    assay_loadagents = st.session_state.assay
-                else:
-                    assay_loadagents = ""
-                assay = Assay(petri_dish=petri_dish, num_agents=num_agents_input, start_logic=start_logic_input, agent_archs=agent_archs_param, steps=steps_input, assay_loadagents=assay_loadagents)
-                assay.set_agent_hyperparameters(
-                    C_impression_initial = 5, # strength of impression when first added to neuron from C learning event
-                    C_impression_match = 2, # increment of impression if accessed by neuron during inference
-                    C_pruning = 1, # decrement of impression in C_info if not accessed by neuron during inference
-                    C_pruning_cutoff = 1, # value below which impressions are pruned from neuron)
-    )
-                assay.INSTINCTS = True # to activate training, let's gooooo
-                assay.run_step(steps=steps_input)
-                simulation_data = assay.export_data()
-                st.session_state.simulation_data = simulation_data
-                st.session_state.assay = assay
-                st.success("Simulation complete! Results are displayed below.")
+        with sim_col2:
+            pretrain_agents = st.checkbox("Pre-train agents on random data", help="Helpful to increase agent's response variance by pre-populating agent neurons' lookup tables, giving a wider range before lessons from learning kick in and override.")
+            if pretrain_agents: pretrain_agent_steps = st.number_input("Add random states to agents", min_value=0, max_value=100, value=10)
+
+    if st.button("▶️ Run Simulation"):
+        with st.spinner(f"Running simulation for {steps_input} steps..."):
+            petri_dish = st.session_state.dish
+            agent_archs_param = "random" if debug_mode_checkbox else updateArch(st.session_state.stimuli_intensity) # the arch that is imported from the "archs" folder
+            
+            if reuse_agents_from_assay and "assay" in st.session_state:
+                assay_loadagents = st.session_state.assay
+            else:
+                assay_loadagents = ""
+            assay = Assay(petri_dish=petri_dish, num_agents=num_agents_input, start_logic=start_logic_input, agent_archs=agent_archs_param, steps=steps_input, assay_loadagents=assay_loadagents)
+            assay.set_agent_hyperparameters(
+                C_impression_initial, # strength of impression when first added to neuron from C learning event
+                C_impression_match, # increment of impression if accessed by neuron during inference
+                C_pruning, # decrement of impression in C_info if not accessed by neuron during inference
+                C_pruning_cutoff, # value below which impressions are pruned from neuron)
+)
+            if pretrain_agents: assay.pretrain_random(pretrain_agent_steps)
+
+            assay.INSTINCTS = True # to activate training, let's gooooo
+            assay.run_step(steps=steps_input)
+            simulation_data = assay.export_data()
+            st.session_state.simulation_data = simulation_data
+            st.session_state.assay = assay
+            st.success("Simulation complete! Results are displayed below.")
 
 
     # --- Visualization Helper Functions ---
@@ -155,8 +171,8 @@ else:
     data_source = None
     if 'simulation_data' in st.session_state:
         data_source = st.session_state.simulation_data
-    elif uploaded_file is not None:
-        data_source = pd.read_pickle(uploaded_file)
+    # elif uploaded_file is not None:
+    #     data_source = pd.read_pickle(uploaded_file)
 
     if data_source is not None:
         try:

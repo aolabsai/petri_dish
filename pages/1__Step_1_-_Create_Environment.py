@@ -13,9 +13,15 @@ st.title("🔬 Petri Dish Environment Builder")
 st.write("Interactively design and visualize stimuli distributions for your 2D environment.")
 
 # --- Initialize Session State ---
+layer_headers = ["Food Layer", "Chemical-A Layer", "Chemical-B Layer"]
 if 'distributions' not in st.session_state:
-    st.session_state.distributions = []
+    st.session_state.distributions = [
+        {'type': 'linear', 'direction': 'horizontal-rightleft', 'min_p': 0.0, 'max_p': 1.0, 'start_pos': (0.0, 0.0), 'end_pos': (1.0, 1.0)},
+        {'type': 'linear', 'direction': 'horizontal-rightleft', 'min_p': 0.0, 'max_p': 1.0, 'start_pos': (0.0, 0.0), 'end_pos': (1.0, 1.0)},
+        {'type': 'linear', 'direction': 'horizontal-rightleft', 'min_p': 0.0, 'max_p': 1.0, 'start_pos': (0.0, 0.0), 'end_pos': (1.0, 1.0)},
+    ]
     st.session_state.stimuli_intensity = []
+    st.session_state.dish = []
 
 # --- Sidebar Controls ---
 with st.sidebar:
@@ -23,19 +29,19 @@ with st.sidebar:
     grid_size = st.slider("Grid Size", 50, 500, 200, 10)
     st.session_state.stimuli_intensity = st.slider("Max Stimuli Intensity (n)", 1, 50, 9, 1)
     
-    st.header("Layer Management")
-    if st.button("＋ Add New Layer"):
-        new_layer = {'type': 'linear', 'direction': 'horizontal-rightleft', 'min_p': 0.0, 'max_p': 1.0, 'start_pos': (0.0, 0.0), 'end_pos': (1.0, 1.0)}
-        st.session_state.distributions.append(new_layer)
+    # st.header("Layer Management")
+    # if st.button("＋ Add New Layer"):
+    #     new_layer = {'type': 'linear', 'direction': 'horizontal-rightleft', 'min_p': 0.0, 'max_p': 1.0, 'start_pos': (0.0, 0.0), 'end_pos': (1.0, 1.0)}
+    #     st.session_state.distributions.append(new_layer)
         
-    st.header("Export Environment")
-    st.write("Save the current setup list to a pickle file.")
-    if st.session_state.distributions:
-        export_dish = PetriDish(
-            size=grid_size, 
-            distributions=st.session_state.distributions, 
-            stimuli_intensity=st.session_state.stimuli_intensity
-        )
+    # st.header("Export Environment")
+    # st.write("Save the current setup list to a pickle file.")
+    # if st.session_state.distributions:
+    #     export_dish = PetriDish(
+    #         size=grid_size, 
+    #         distributions=st.session_state.distributions, 
+    #         stimuli_intensity=st.session_state.stimuli_intensity
+    #     )
         # # Create a deep copy for serialization to avoid including the large 'custom_mask' array
         # export_distributions = []
         # for dist in st.session_state.distributions:
@@ -52,13 +58,12 @@ with st.sidebar:
         #     file_name="dish_env.pkl",
         #     mime="application/octet-stream"
         # )
+    if st.session_state.dish:
         if st.button("Save Environment", help="Happy with your petri dish? Click this button to save the env and move on to run your assay.", type="primary", icon="🟢"):
-            st.session_state.dish = export_dish
             st.switch_page("pages/2_Step_2_-_Run Assay.py")
-
     
-    else:
-        st.info("Add at least one layer to enable export.")
+    # else:
+    #     st.info("Add at least one layer to enable export.")
 
 
 # --- Main Layout ---
@@ -72,7 +77,8 @@ else:
     for i, layer_config in enumerate(st.session_state.distributions):
         with config_cols[i]:
             with st.container(border=True):
-                st.subheader(f"Layer {i}")
+                st.subheader(layer_headers[i])
+                # st.subheader(f"Layer {i}")
                 key_prefix = f"layer_{i}"
                 layer_config['type'] = st.selectbox("Distribution Type", ['linear', 'radial', 'quadrant', 'custom'], index=['linear', 'radial', 'quadrant', 'custom'].index(layer_config.get('type', 'linear')), key=f"{key_prefix}_type")
                 prob_range = st.slider("Probability Range", 0.0, 1.0, (layer_config.get('min_p', 0.0), layer_config.get('max_p', 1.0)), key=f"{key_prefix}_prob")
@@ -132,7 +138,7 @@ else:
 
     # --- Generate the dish once after all configs are set ---
     try:
-        dish = PetriDish(size=grid_size, distributions=st.session_state.distributions, stimuli_intensity=st.session_state.stimuli_intensity)
+        st.session_state.dish = PetriDish(size=grid_size, distributions=st.session_state.distributions, stimuli_intensity=st.session_state.stimuli_intensity)
         
         # --- Part 2: Individual Layer Visualizations ---
         st.header("Individual Layer Views")
@@ -140,7 +146,7 @@ else:
         vis_cols = st.columns(len(st.session_state.distributions))
         for i, col in enumerate(vis_cols):
             with col:
-                fig_layer = dish.visualize_layer(i)
+                fig_layer = st.session_state.dish.visualize_layer(i)
                 if fig_layer:
                     st.pyplot(fig_layer)
 
@@ -151,7 +157,7 @@ else:
         _left_spacer, center_col, _right_spacer = st.columns([1, 1, 1])
         with center_col:
             st.header("Combined Environment View")
-            fig_combined = dish.visualize_combined()
+            fig_combined = st.session_state.dish.visualize_combined()
             st.pyplot(fig_combined)
 
     except ValueError as e:
