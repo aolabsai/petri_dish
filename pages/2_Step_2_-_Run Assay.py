@@ -21,12 +21,12 @@ st.set_page_config(
 
 # --- STREAMLIT APP UI AND LOGIC ---
 
-st.sidebar.title("Controls")
-uploaded_file = st.sidebar.file_uploader(
-    "Upload experiment data",
-    type=["pkl"],
-    help="Upload a pickle file containing agent experiment data."
-)
+# st.sidebar.title("Controls")
+# uploaded_file = st.sidebar.file_uploader(
+#     "Upload experiment data",
+#     type=["pkl"],
+#     help="Upload a pickle file containing agent experiment data."
+# )
 st.title("Continuous Learning Benchmark: Petri Dish Simulation")
 
 # --- Initialize Session State ---
@@ -60,11 +60,14 @@ else:
         
         sim_col1, sim_col2, sim_col3 = st.columns(3)
         with sim_col1:
-                C_impression_initial = st.number_input("Initial learning experience impression strength", min_value=1, max_value=100, value=5, help="The number added to the memory'") # strength of impression when first added to neuron from C learning event
-                C_impression_match = st.number_input("Impression increment if lookup match", min_value=1, max_value=C_impression_initial, value=2, help="The number incremented when there is a lookup match")  # increment of impression if accessed by neuron during inference
-                C_pruning = st.number_input("Impression decrement for all other rows that did not match", min_value=1, max_value=C_impression_match, value=1, help="The number decremented when no lookup match") # decrement of impression in C_info if not accessed by neuron during inference
-                C_pruning_cutoff = st.number_input("Number below which memories are deleted from neurons' lookup tables", min_value=1, max_value=100, value=1, help="Cutoff value below which memories are deleted") # value below which impressions are pruned from neuron)
-                
+            C_impression_initial = st.number_input("Initial learning experience impression strength", min_value=1, max_value=100, value=5, help="The number added to the memory'") # strength of impression when first added to neuron from C learning event
+            C_impression_match = st.number_input("Impression increment if lookup match", min_value=1, max_value=C_impression_initial, value=2, help="The number incremented when there is a lookup match")  # increment of impression if accessed by neuron during inference
+            C_pruning = st.number_input("Impression decrement for all other rows that did not match", min_value=1, max_value=C_impression_match, value=1, help="The number decremented when no lookup match") # decrement of impression in C_info if not accessed by neuron during inference
+            C_pruning_cutoff = st.number_input("Number below which memories are deleted from neurons' lookup tables", min_value=1, max_value=100, value=1, help="Cutoff value below which memories are deleted") # value below which impressions are pruned from neuron)
+
+        with sim_col2:
+            pretrain_agents = st.checkbox("Pre-train agents on random data", help="Helpful to increase agent's response variance by pre-populating agent neurons' lookup tables, giving a wider range before lessons from learning kick in and override.")
+            if pretrain_agents: pretrain_agent_steps = st.number_input("Add random states to agents", min_value=0, max_value=100, value=10)
 
     if st.button("▶️ Run Simulation"):
         with st.spinner(f"Running simulation for {steps_input} steps..."):
@@ -82,6 +85,8 @@ else:
                 C_pruning, # decrement of impression in C_info if not accessed by neuron during inference
                 C_pruning_cutoff, # value below which impressions are pruned from neuron)
 )
+            if pretrain_agents: assay.pretrain_random(pretrain_agent_steps)
+
             assay.INSTINCTS = True # to activate training, let's gooooo
             assay.run_step(steps=steps_input)
             simulation_data = assay.export_data()
@@ -166,8 +171,8 @@ else:
     data_source = None
     if 'simulation_data' in st.session_state:
         data_source = st.session_state.simulation_data
-    elif uploaded_file is not None:
-        data_source = pd.read_pickle(uploaded_file)
+    # elif uploaded_file is not None:
+    #     data_source = pd.read_pickle(uploaded_file)
 
     if data_source is not None:
         try:
