@@ -133,9 +133,9 @@ else:
                             # Rerun to update the visualizations with the new mask
                             st.rerun()
 
-                if st.button("🗑️ Remove Layer", key=f"{key_prefix}_remove", use_container_width=True):
-                    st.session_state.distributions.pop(i)
-                    st.rerun()
+                # if st.button("🗑️ Remove Layer", key=f"{key_prefix}_remove", use_container_width=True):
+                #     st.session_state.distributions.pop(i)
+                #     st.rerun()
 
     # --- Generate the dish once after all configs are set ---
     try:
