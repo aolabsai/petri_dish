@@ -11,9 +11,10 @@ input_channel_neurons = input_channel_size * input_intensity # for 1 layer
 
 def updateArch(stimuli_intensity):
 
+    neurons_per_input_channel = input_channel_size * stimuli_intensity 
     # create Agent architecture (neuronal configuration)
     arch = ao.Arch(
-        arch_i=[input_channel_size * stimuli_intensity]*input_channels, # 27 total input neurons
+        arch_i=[neurons_per_input_channel]*input_channels, # 27 total input neurons
         arch_z=[1], # 1 output neuron, corresponding to: 1="go forward", 0="turn"
         arch_c=[2], # 2 custom control neurons, as instinct neuron for pleasure-from-food and pain-from-hunger
         connector_function="full_conn", # connection of neurons to each other
@@ -21,8 +22,8 @@ def updateArch(stimuli_intensity):
 
     arch.C_types_names = ["Pleasure", "Pain"]
 
-    input_pain_threshold = input_channel_neurons * 1/3
-    input_pleasure_threshold = input_channel_neurons * 2/3
+    input_pain_threshold = neurons_per_input_channel * 1/3
+    input_pleasure_threshold = neurons_per_input_channel * 2/3
 
     # create Agent's custom control function, corresponding to pleasure-from-food instinct
     def c0_instinct_rule(INPUT, Agent):

@@ -27,7 +27,7 @@ if 'distributions' not in st.session_state:
 with st.sidebar:
     st.header("Global Settings")
     grid_size = st.slider("Grid Size", 50, 500, 200, 10)
-    st.session_state.stimuli_intensity = st.slider("Max Stimuli Intensity (n)", 1, 50, 9, 1)
+    st.session_state.stimuli_intensity = st.slider("Max Stimuli Intensity (n)", min_value=1, max_value=50, value=1, step=1)
     
     # st.header("Layer Management")
     # if st.button("＋ Add New Layer"):

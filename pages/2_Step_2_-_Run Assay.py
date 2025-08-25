@@ -93,6 +93,7 @@ else:
             st.session_state.simulation_data = simulation_data
             st.session_state.assay = assay
             st.success("Simulation complete! Results are displayed below.")
+            st.rerun()
 
 
     # --- Visualization Helper Functions ---
@@ -205,6 +206,20 @@ else:
             selected_agents = agents
         else:
             selected_agents = st.sidebar.multiselect("Or select Agents to display", agents, default=agents)
+
+        with st.sidebar:
+            st.markdown("---")
+            if "assay" in st.session_state:
+                st.write("Finished? Export experiment data as a pickle file.")
+                file_name = st.text_input("Experiment file name:", value="exp01")                
+                import dill as pickle
+                assay_bytes = pickle.dumps(st.session_state.assay)
+                st.download_button(
+                    label="Save experiment to .pkl file.",
+                    data=assay_bytes,
+                    file_name= file_name+".pkl",
+                    mime="application/octet-stream"
+                )
 
         if selected_agents:
             combined_data = full_data[full_data['Agent'].isin(selected_agents)].copy()
