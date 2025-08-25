@@ -59,6 +59,7 @@ with st.sidebar:
         #     mime="application/octet-stream"
         # )
     if st.session_state.dish:
+        st.session_state.saved_dish = PetriDish(size=grid_size, distributions=st.session_state.distributions, stimuli_intensity=st.session_state.stimuli_intensity)
         if st.button("Save Environment", help="Happy with your petri dish? Click this button to save the env and move on to run your assay.", type="primary", icon="🟢"):
             st.switch_page("pages/2_Step_2_-_Run Assay.py")
     

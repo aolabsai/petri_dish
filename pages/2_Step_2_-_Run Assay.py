@@ -30,10 +30,10 @@ st.set_page_config(
 st.title("Continuous Learning Benchmark: Petri Dish Simulation")
 
 # --- Initialize Session State ---
-if 'dish' not in st.session_state:
-    st.session_state.dish = []
+if 'saved_dish' not in st.session_state:
+    st.session_state.saved_dish = []
 
-if not st.session_state.dish:
+if not st.session_state.saved_dish:
     st.info("⬅️ Go to the env page to set an env first.")
     st.page_link("pages/1__Step_1_-_Create_Environment.py", label=" Set your environment.")
 else:
@@ -71,7 +71,7 @@ else:
 
     if st.button("▶️ Run Simulation"):
         with st.spinner(f"Running simulation for {steps_input} steps..."):
-            petri_dish = st.session_state.dish
+            petri_dish = st.session_state.saved_dish
             agent_archs_param = "random" if debug_mode_checkbox else updateArch(st.session_state.stimuli_intensity) # the arch that is imported from the "archs" folder
             
             if reuse_agents_from_assay and "assay" in st.session_state:
