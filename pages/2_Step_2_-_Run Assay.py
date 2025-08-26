@@ -207,6 +207,18 @@ else:
         else:
             selected_agents = st.sidebar.multiselect("Or select Agents to display", agents, default=agents)
 
+
+        if selected_agents:
+            combined_data = full_data[full_data['Agent'].isin(selected_agents)].copy()
+
+            color_tuples = plt.cm.tab10.colors
+            agent_colors = {
+                agent: mcolors.to_hex(color_tuples[i % len(color_tuples)]) 
+                for i, agent in enumerate(agents)
+            }
+        else:
+            st.warning("Please select at least one agent from the sidebar to display visualizations.")
+
         with st.sidebar:
             st.markdown("---")
             if "assay" in st.session_state:
@@ -221,117 +233,100 @@ else:
                     mime="application/octet-stream"
                 )
 
-        if selected_agents:
-            combined_data = full_data[full_data['Agent'].isin(selected_agents)].copy()
+        num_layers = len(env_data)
+        # Generate RGB data for each layer and the combined view
+        max_intensity = float(max(layer.max() for layer in env_data if layer.size > 0) or 1)
+        layer1_rgb = visualize_layer_data(env_data[0], 0, num_layers, max_intensity)
+        layer2_rgb = visualize_layer_data(env_data[1], 1, num_layers, max_intensity)
+        layer3_rgb = visualize_layer_data(env_data[2], 2, num_layers, max_intensity)
+        layer4_rgb = visualize_combined_data(env_data, max_intensity)
 
-            color_tuples = plt.cm.tab10.colors
-            agent_colors = {
-                agent: mcolors.to_hex(color_tuples[i % len(color_tuples)]) 
-                for i, agent in enumerate(agents)
-            }
+        st.markdown("---")
+
+        _left_spacer, center_col, _right_spacer = st.columns([1, 1, 1])
+        with center_col:
+            st.header("Agents Movement Over Time")
+            legend_text = " **Legend:** " + " | ".join([f"<span style='color:{agent_colors[agent]}; font-weight:bold;'>⦿ {agent}</span>" for agent in selected_agents])
+            st.markdown(legend_text, unsafe_allow_html=True)
+    
+            with st.expander("Environment View (Combined)", expanded=True):
+                color_scale = alt.Scale(domain=list(agent_colors.keys()), range=list(agent_colors.values()))
+                st.pyplot(plot_grid(layer4_rgb, combined_data, agent_colors, selected_agents, grid_size))
+        with st.expander("Env Views by Stimuli (Filtered)", expanded=False):
+            grid_col1, grid_col2, grid_col3 = st.columns(3)
+            # Assign colors based on layer index, matching the PetriDish class logic
+            layer_titles = [f"Layer {i+1}" for i in range(num_layers)]
+            layer_rgbs = [layer1_rgb, layer2_rgb, layer3_rgb]
             
-            try:
-                layers = env_data
-                num_layers = len(layers)
-            except (IndexError, TypeError) as e:
-                st.error(f"Could not read stimuli layers from the data. Error: {e}")
-                st.stop()
+            for i, col in enumerate([grid_col1, grid_col2, grid_col3]):
+                with col:
+                    st.subheader(layer_titles[i])
+                    st.pyplot(plot_grid(layer_rgbs[i], combined_data, agent_colors, selected_agents, grid_size))
 
-            # Generate RGB data for each layer and the combined view
-            max_intensity = float(max(layer.max() for layer in layers if layer.size > 0) or 1)
-            layer1_rgb = visualize_layer_data(layers[0], 0, num_layers, max_intensity)
-            layer2_rgb = visualize_layer_data(layers[1], 1, num_layers, max_intensity)
-            layer3_rgb = visualize_layer_data(layers[2], 2, num_layers, max_intensity)
-            layer4_rgb = visualize_combined_data(layers, max_intensity)
-
-            st.markdown("---")
-
-            _left_spacer, center_col, _right_spacer = st.columns([1, 1, 1])
-            with center_col:
-                st.header("Agents Movement Over Time")
-                legend_text = " **Legend:** " + " | ".join([f"<span style='color:{agent_colors[agent]}; font-weight:bold;'>⦿ {agent}</span>" for agent in selected_agents])
-                st.markdown(legend_text, unsafe_allow_html=True)
-        
-                with st.expander("Environment View (Combined)", expanded=True):
-                    color_scale = alt.Scale(domain=list(agent_colors.keys()), range=list(agent_colors.values()))
-                    st.pyplot(plot_grid(layer4_rgb, combined_data, agent_colors, selected_agents, grid_size))
-            with st.expander("Env Views by Stimuli (Filtered)", expanded=False):
-                grid_col1, grid_col2, grid_col3 = st.columns(3)
-                # Assign colors based on layer index, matching the PetriDish class logic
-                layer_titles = [f"Layer {i+1}" for i in range(num_layers)]
-                layer_rgbs = [layer1_rgb, layer2_rgb, layer3_rgb]
-                
-                for i, col in enumerate([grid_col1, grid_col2, grid_col3]):
-                    with col:
-                        st.subheader(layer_titles[i])
-                        st.pyplot(plot_grid(layer_rgbs[i], combined_data, agent_colors, selected_agents, grid_size))
-
-            st.header("Agent Activity Over Time")
-            with st.expander("I (input) Neuron Activations", expanded=True):
-                s_col1, s_col2, s_col3 = st.columns(3)
-                layer_titles = ["Layer 1: Red", "Layer 2: Green", "Layer 3: Blue"]
-                stimuli_cols = ['stimuli0', 'stimuli1', 'stimuli2']
-                for i, col in enumerate([s_col1, s_col2, s_col3]):
-                    with col:
-                        st.subheader(layer_titles[i])
-                        response_chart = alt.Chart(combined_data).mark_line().encode(
-                            x=alt.X('Time', axis=alt.Axis(title=None)), y=alt.Y(stimuli_cols[i], axis=alt.Axis(title=None)),
-                            color=alt.Color('Agent', scale=color_scale, legend=None), tooltip=['Time', stimuli_cols[i], 'Agent']
-                        ).interactive()
-                        st.altair_chart(response_chart, use_container_width=True)
-
-            with st.expander("Q (inner) Neuron Activations", expanded=True):
-                n_col1, n_col2, n_col3 = st.columns(3)
-                neuronal_cols = ['neuronal0', 'neuronal1', 'neuronal2']
-                for i, col in enumerate([n_col1, n_col2, n_col3]):
-                    with col:
-                        st.subheader(layer_titles[i])
-                        neuronal_chart = alt.Chart(combined_data).mark_line().encode(
-                            x=alt.X('Time', axis=alt.Axis(title=None)), y=alt.Y(neuronal_cols[i], axis=alt.Axis(title=None)),
-                            color=alt.Color('Agent', scale=color_scale, legend=None), tooltip=['Time', neuronal_cols[i], 'Agent']
-                        ).interactive()
-                        st.altair_chart(neuronal_chart, use_container_width=True)
-            
-            st.markdown("---")
-            with st.expander("Learning Events and Memory", expanded=True):
-                col3, col4 = st.columns(2)
-                with col3:
-                    st.subheader("Control Events")
-                    st.text("Total number of learning events over time.")
-                    if set(learning_event_cols) == {'Pleasure', 'Pain'}:
-                        if st.checkbox("View combined plot (Pleasure - Pain)"):
-                            combined_data['Combined_Events'] = combined_data['Pleasure'] - combined_data['Pain']
-                            combined_chart = alt.Chart(combined_data).mark_line().encode(
-                                x=alt.X('Time', axis=alt.Axis(title="")), y=alt.Y('Combined_Events', axis=alt.Axis(title="Net Events")),
-                                color=alt.Color('Agent', scale=color_scale, legend=None), tooltip=['Time', 'Agent', 'Combined_Events']
-                            ).interactive()
-                            st.altair_chart(combined_chart, use_container_width=True)
-                            st.text("Displaying the net of Pleasure minus Pain.")
-                        else:
-                            selected_event_types = learning_event_cols
-                            learning_data_long = combined_data.melt(id_vars=['Time', 'Agent'], value_vars=selected_event_types, var_name='Event Type', value_name='Count')
-                            learning_chart = alt.Chart(learning_data_long).mark_line(interpolate='step-after').encode(
-                                x=alt.X('Time', axis=alt.Axis(title="")), y=alt.Y('Count', axis=alt.Axis(title="Total Events")),
-                                color=alt.Color('Agent', scale=color_scale, legend=None), strokeDash=alt.StrokeDash('Event Type', legend=alt.Legend(title="Event Type")),
-                                tooltip=['Time', 'Agent', 'Event Type', 'Count']
-                            ).interactive()
-                            st.altair_chart(learning_chart, use_container_width=True)
-
-                with col4:
-                    st.write("")
-                    st.write("")
-                    st.write("")
-                    st.subheader("Experience States")
-                    st.text("Total unique memories in the output neuron.")
-                    states_chart = alt.Chart(combined_data).mark_line().encode(
-                        x=alt.X('Time', axis=alt.Axis(title="")), y=alt.Y('Experience States', axis=alt.Axis(title="")),
-                        color=alt.Color('Agent', scale=color_scale, legend=None), tooltip=['Time', 'Experience States', 'Agent']
+        st.header("Agent Activity Over Time")
+        with st.expander("I (input) Neuron Activations", expanded=True):
+            s_col1, s_col2, s_col3 = st.columns(3)
+            layer_titles = ["Layer 1: Red", "Layer 2: Green", "Layer 3: Blue"]
+            stimuli_cols = ['stimuli0', 'stimuli1', 'stimuli2']
+            for i, col in enumerate([s_col1, s_col2, s_col3]):
+                with col:
+                    st.subheader(layer_titles[i])
+                    response_chart = alt.Chart(combined_data).mark_line().encode(
+                        x=alt.X('Time', axis=alt.Axis(title=None)), y=alt.Y(stimuli_cols[i], axis=alt.Axis(title=None)),
+                        color=alt.Color('Agent', scale=color_scale, legend=None), tooltip=['Time', stimuli_cols[i], 'Agent']
                     ).interactive()
-                    st.altair_chart(states_chart, use_container_width=True)
+                    st.altair_chart(response_chart, use_container_width=True)
 
-            if st.checkbox("Show Raw Data"):
-                st.dataframe(combined_data)
-        else:
-            st.warning("Please select at least one agent from the sidebar to display visualizations.")
+        with st.expander("Q (inner) Neuron Activations", expanded=True):
+            n_col1, n_col2, n_col3 = st.columns(3)
+            neuronal_cols = ['neuronal0', 'neuronal1', 'neuronal2']
+            for i, col in enumerate([n_col1, n_col2, n_col3]):
+                with col:
+                    st.subheader(layer_titles[i])
+                    neuronal_chart = alt.Chart(combined_data).mark_line().encode(
+                        x=alt.X('Time', axis=alt.Axis(title=None)), y=alt.Y(neuronal_cols[i], axis=alt.Axis(title=None)),
+                        color=alt.Color('Agent', scale=color_scale, legend=None), tooltip=['Time', neuronal_cols[i], 'Agent']
+                    ).interactive()
+                    st.altair_chart(neuronal_chart, use_container_width=True)
+        
+        st.markdown("---")
+        with st.expander("Learning Events and Memory", expanded=True):
+            col3, col4 = st.columns(2)
+            with col3:
+                st.subheader("Control Events")
+                st.text("Total number of learning events over time.")
+                if set(learning_event_cols) == {'Pleasure', 'Pain'}:
+                    if st.checkbox("View combined plot (Pleasure - Pain)"):
+                        combined_data['Combined_Events'] = combined_data['Pleasure'] - combined_data['Pain']
+                        combined_chart = alt.Chart(combined_data).mark_line().encode(
+                            x=alt.X('Time', axis=alt.Axis(title="")), y=alt.Y('Combined_Events', axis=alt.Axis(title="Net Events")),
+                            color=alt.Color('Agent', scale=color_scale, legend=None), tooltip=['Time', 'Agent', 'Combined_Events']
+                        ).interactive()
+                        st.altair_chart(combined_chart, use_container_width=True)
+                        st.text("Displaying the net of Pleasure minus Pain.")
+                    else:
+                        selected_event_types = learning_event_cols
+                        learning_data_long = combined_data.melt(id_vars=['Time', 'Agent'], value_vars=selected_event_types, var_name='Event Type', value_name='Count')
+                        learning_chart = alt.Chart(learning_data_long).mark_line(interpolate='step-after').encode(
+                            x=alt.X('Time', axis=alt.Axis(title="")), y=alt.Y('Count', axis=alt.Axis(title="Total Events")),
+                            color=alt.Color('Agent', scale=color_scale, legend=None), strokeDash=alt.StrokeDash('Event Type', legend=alt.Legend(title="Event Type")),
+                            tooltip=['Time', 'Agent', 'Event Type', 'Count']
+                        ).interactive()
+                        st.altair_chart(learning_chart, use_container_width=True)
+
+            with col4:
+                st.write("")
+                st.write("")
+                st.write("")
+                st.subheader("Experience States")
+                st.text("Total unique memories in the output neuron.")
+                states_chart = alt.Chart(combined_data).mark_line().encode(
+                    x=alt.X('Time', axis=alt.Axis(title="")), y=alt.Y('Experience States', axis=alt.Axis(title="")),
+                    color=alt.Color('Agent', scale=color_scale, legend=None), tooltip=['Time', 'Experience States', 'Agent']
+                ).interactive()
+                st.altair_chart(states_chart, use_container_width=True)
+
+        if st.checkbox("Show Raw Data"):
+            st.dataframe(combined_data)
     else:
         st.info("⬅️ Run a simulation or upload a pickle file with agent data to begin.")

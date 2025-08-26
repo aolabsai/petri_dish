@@ -26,7 +26,11 @@ if 'distributions' not in st.session_state:
 # --- Sidebar Controls ---
 with st.sidebar:
     st.header("Global Settings")
-    grid_size = st.slider("Grid Size", 50, 500, 200, 10)
+    if "grid_size" in st.session_state:
+        def_grid_size = st.session_state.grid_size
+    else:
+        def_grid_size = 150
+    st.session_state.grid_size = st.slider("Grid Size", 50, 500, def_grid_size, 10)
     st.session_state.stimuli_intensity = st.slider("Max Stimuli Intensity (n)", min_value=1, max_value=50, value=1, step=1)
     
     # st.header("Layer Management")
@@ -60,7 +64,7 @@ with st.sidebar:
         # )
     if st.session_state.dish:
         if st.button("Save Environment", help="Happy with your petri dish? Click this button to save the env and move on to run your assay.", type="primary", icon="🟢"):
-            st.session_state.saved_dish = PetriDish(size=grid_size, distributions=st.session_state.distributions, stimuli_intensity=st.session_state.stimuli_intensity)
+            st.session_state.saved_dish = PetriDish(size=st.session_state.grid_size, distributions=st.session_state.distributions, stimuli_intensity=st.session_state.stimuli_intensity)
             st.switch_page("pages/2_Step_2_-_Run Assay.py")
     
     # else:
@@ -124,7 +128,7 @@ else:
                             
                             # Convert to PIL Image to resize it to the main grid size
                             pil_img = Image.fromarray(mask_alpha)
-                            resized_pil_img = pil_img.resize((grid_size, grid_size), Image.Resampling.LANCZOS)
+                            resized_pil_img = pil_img.resize((st.session_state.grid_size, st.session_state.grid_size), Image.Resampling.LANCZOS)
                             
                             # Convert back to a numpy array and store in the layer configuration
                             resized_mask = np.array(resized_pil_img)
@@ -139,7 +143,7 @@ else:
 
     # --- Generate the dish once after all configs are set ---
     try:
-        st.session_state.dish = PetriDish(size=grid_size, distributions=st.session_state.distributions, stimuli_intensity=st.session_state.stimuli_intensity)
+        st.session_state.dish = PetriDish(size=st.session_state.grid_size, distributions=st.session_state.distributions, stimuli_intensity=st.session_state.stimuli_intensity)
         
         # --- Part 2: Individual Layer Visualizations ---
         st.header("Individual Layer Views")
