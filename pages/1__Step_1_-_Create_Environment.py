@@ -59,8 +59,8 @@ with st.sidebar:
         #     mime="application/octet-stream"
         # )
     if st.session_state.dish:
-        st.session_state.saved_dish = PetriDish(size=grid_size, distributions=st.session_state.distributions, stimuli_intensity=st.session_state.stimuli_intensity)
         if st.button("Save Environment", help="Happy with your petri dish? Click this button to save the env and move on to run your assay.", type="primary", icon="🟢"):
+            st.session_state.saved_dish = PetriDish(size=grid_size, distributions=st.session_state.distributions, stimuli_intensity=st.session_state.stimuli_intensity)
             st.switch_page("pages/2_Step_2_-_Run Assay.py")
     
     # else:
@@ -107,13 +107,13 @@ else:
                     st.write("Draw a mask for the distribution.")
                     stroke_width = st.slider("Brush Size", 1, 50, 20, key=f"{key_prefix}_stroke")
                     canvas_result = st_canvas(
-                        fill_color="rgba(255, 255, 255, 1)",
+                        fill_color="rgba(0, 0, 0, 1)",
                         stroke_width=stroke_width,
-                        stroke_color="rgba(0, 0, 0, 1)",
+                        stroke_color="rgba(255, 255, 255, 1)", # should make this dynamically match the layers' color
                         background_color="rgba(0, 0, 0, 0)",
                         update_streamlit=True,
-                        height=200,
-                        width=200,
+                        height=300,
+                        width=300,
                         drawing_mode="freedraw",
                         key=f"{key_prefix}_canvas",
                     )
