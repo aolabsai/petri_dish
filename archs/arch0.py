@@ -5,7 +5,7 @@ env_input_layers = 3
 input_channels = env_input_layers
 input_channel_size = 9 # of grid points around agent counted as input
 
-def updateArch(stimuli_intensity):
+def updateArch(stimuli_intensity, pain_threshold, pleasure_threshold):
 
     neurons_per_input_channel = input_channel_size * stimuli_intensity 
     # create Agent architecture (neuronal configuration)
@@ -18,8 +18,8 @@ def updateArch(stimuli_intensity):
 
     arch.C_types_names = ["Pleasure", "Pain"]
 
-    input_pain_threshold = neurons_per_input_channel * 1/3
-    input_pleasure_threshold = neurons_per_input_channel * 2/3
+    input_pain_threshold = neurons_per_input_channel * pain_threshold
+    input_pleasure_threshold = neurons_per_input_channel * pleasure_threshold
 
     # create Agent's custom control function, corresponding to pleasure-from-food instinct
     def c0_instinct_rule(INPUT, Agent):

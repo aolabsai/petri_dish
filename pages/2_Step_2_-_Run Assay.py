@@ -61,7 +61,14 @@ else:
 
         sim_col1, sim_col2, sim_col3 = st.columns(3)
         with sim_col1:
-            instincts_checkbox = st.checkbox("Enable instincts", value=True, help='Disabling this will disable new learning')
+            st.session_state.instincts_checkbox = st.checkbox("Enable instincts", value=True, help='Disabling this will disable new learning')
+            st.write("The agent sums the inputs (per layer) of the immediate points around it (9 points total, including its own position); food-related pain/pleasure instincts can be set up to activate based on a threshold percentage of the input.")
+            if st.session_state.instincts_checkbox:
+                in_col1, in_col2 = st.columns(2)
+                with in_col1:
+                    st.session_state.pain_threshold = st.number_input("Threshold for pain:", min_value=0.0, max_value=1.0, value=1/3)
+                with in_col2:
+                    st.session_state.pleasure_threshold = st.number_input("Threshold for pleasure:", min_value=0.0, max_value=1.0, value=2/3)
 
         with sim_col2:
             save_C_info = st.checkbox("Enable neuron-level pruning for agent-level forgetting", value=False, help="")
@@ -78,7 +85,7 @@ else:
     if st.button("▶️ Run Simulation"):
         with st.spinner(f"Running simulation for {steps_input} steps..."):
             petri_dish = st.session_state.saved_dish
-            agent_archs_param = "random" if debug_mode_checkbox else updateArch(st.session_state.stimuli_intensity) # the arch that is imported from the "archs" folder
+            agent_archs_param = "random" if debug_mode_checkbox else updateArch(st.session_state.stimuli_intensity, st.session_state.pain_threshold, st.session_state.pleasure_threshold) # the arch that is imported from the "archs" folder
             
             if reuse_agents_from_assay and "assay" in st.session_state:
                 assay_loadagents = st.session_state.assay
@@ -95,7 +102,7 @@ else:
 )
             if pretrain_agents: assay.pretrain_random(pretrain_agent_steps)
 
-            assay.INSTINCTS = instincts_checkbox # to activate training, let's gooooo
+            assay.INSTINCTS = st.session_state.instincts_checkbox # to activate training, let's gooooo
             assay.run_step(steps=steps_input)
             st.session_state.assay = assay
             st.session_state.assay_saved = assay.export_data()
