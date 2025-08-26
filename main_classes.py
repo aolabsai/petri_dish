@@ -486,7 +486,8 @@ class Assay:
         else:
             return np.random.choice(self.ACTIONS[1:])
             
-    def set_agent_hyperparameters(self, C_impression_initial=10, C_impression_match=1, C_pruning=1, C_pruning_cutoff=5, save_C_info=True):
+    def set_agent_hyperparameters(self, C_impression_initial=10, C_impression_match=1, C_pruning=1, C_pruning_cutoff=5, save_C_info=True,
+                                  saturation_threshold=10, refractory_period=5, saturation_refractory=True):
         if self.debug_mode:
             print("Cannot set hyperparameters in random/debug mode.")
             return
@@ -498,6 +499,10 @@ class Assay:
             a.C_impression_match = C_impression_match
             a.C_pruning = C_pruning
             a.C_pruning_cutoff = C_pruning_cutoff
+
+            a._saturation_refractory = saturation_refractory
+            a.saturation_threshold = saturation_threshold
+            a.refractory_period = refractory_period
 
     def pretrain_random(self, steps):
         if self.debug_mode:

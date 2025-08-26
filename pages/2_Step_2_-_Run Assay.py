@@ -59,7 +59,7 @@ else:
         """)
         
 
-        sim_col1, sim_col2, sim_col3 = st.columns(3)
+        sim_col1, sim_col2, sim_col3, sim_col4 = st.columns(4)
         with sim_col1:
             st.session_state.instincts_checkbox = st.checkbox("Enable instincts", value=True, help='Disabling this will disable new learning')
             st.write("The agent sums the inputs (per layer) of the immediate points around it (9 points total, including its own position); food-related pain/pleasure instincts can be set up to activate based on a threshold percentage of the input.")
@@ -79,8 +79,15 @@ else:
             C_pruning_cutoff = st.number_input("Number below which memories are deleted from neurons' lookup tables", min_value=1, max_value=100, value=1, help="Cutoff value below which memories are deleted", disabled=not save_C_info) # value below which impressions are pruned from neuron)
 
         with sim_col3:
+            saturation_refractory = st.checkbox("Enable saturation and refractory limits to neural responses", value=False, help="")
+            if saturation_refractory: st.warning('This is an experimental feature still in development; to use it be sure to run on [this branch](https://github.com/aolabsai/ao_core/tree/research_expansion/neuron_pruning) of ao_core', icon="⚠️")
+            saturation_threshold = st.number_input("Number of consecutively repeated neuron outputs before the opposite output is forced (eg. set this value to 5; if a neuron responds `1` 5 times, then force its response to be `0` for the 6th time)", min_value=0, max_value=20, value=10, help="", disabled=not saturation_refractory) # strength of impression when first added to neuron from C learning event
+            refractory_period = st.number_input("Number of states before a response-saturated neuron once again responds regularly", min_value=0, max_value=20, value=5, help="", disabled=not saturation_refractory)  # increment of impression if accessed by neuron during inference
+
+        with sim_col4:
             pretrain_agents = st.checkbox("Pre-train agents on random data", help="Helpful to increase agent's response variance by pre-populating agent neurons' lookup tables, giving a wider range before lessons from learning kick in and override.")
             if pretrain_agents: pretrain_agent_steps = st.number_input("Add random states to agents", min_value=0, max_value=100, value=10)
+
 
     if st.button("▶️ Run Simulation"):
         with st.spinner(f"Running simulation for {steps_input} steps..."):
@@ -98,8 +105,12 @@ else:
                 C_impression_match, # increment of impression if accessed by neuron during inference
                 C_pruning, # decrement of impression in C_info if not accessed by neuron during inference
                 C_pruning_cutoff, # value below which impressions are pruned from neuron)
-                save_C_info # whether or not to disable this feature
-)
+                save_C_info, # whether or not to disable this feature
+                saturation_threshold,
+                refractory_period,
+                saturation_refractory
+                )
+
             if pretrain_agents: assay.pretrain_random(pretrain_agent_steps)
 
             assay.INSTINCTS = st.session_state.instincts_checkbox # to activate training, let's gooooo
