@@ -625,8 +625,7 @@ class Assay:
                     df[self.agent_archs.C_types_names[c]] = self.meta_history[:to_step, a, 7+c]
             agent_dfs.append(df)
         
-        agent_data = [ agent_names, agent_dfs ]
-        env_data = self.dish.layers
-        final_data = [ agent_data, env_data ]
-        
-        return final_data
+        self.agent_data = [ agent_names, agent_dfs ]
+        self.env_data = self.dish.layers
+
+        return True

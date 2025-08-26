@@ -97,9 +97,8 @@ else:
 
             assay.INSTINCTS = instincts_checkbox # to activate training, let's gooooo
             assay.run_step(steps=steps_input)
-            simulation_data = assay.export_data()
-            st.session_state.simulation_data = simulation_data
             st.session_state.assay = assay
+            st.session_state.assay_saved = assay.export_data()
             st.success("Simulation complete! Results are displayed below.")
             st.rerun()
 
@@ -177,17 +176,10 @@ else:
 
     # --- Main Data Processing and Visualization Logic ---
 
-    data_source = None
-    if 'simulation_data' in st.session_state:
-        data_source = st.session_state.simulation_data
-    # elif uploaded_file is not None:
-    #     data_source = pd.read_pickle(uploaded_file)
-
-    if data_source is not None:
+    if 'assay_saved' in st.session_state:
         try:
-            all_data = data_source
-            agent_info, env_data = all_data[0], all_data[1]
-            agent_names, agent_dfs = agent_info[0], agent_info[1]
+            agent_data, env_data = st.session_state.assay.agent_data, st.session_state.assay.env_data
+            agent_names, agent_dfs = agent_data[0], agent_data[1]
             
             full_data = pd.concat([df.assign(Agent=name) for df, name in zip(agent_dfs, agent_names)], ignore_index=True)
             grid_size = env_data[0].shape[0]
