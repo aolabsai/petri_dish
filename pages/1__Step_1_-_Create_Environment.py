@@ -83,59 +83,69 @@ else:
         with config_cols[i]:
             with st.container(border=True):
                 st.subheader(layer_headers[i])
-                # st.subheader(f"Layer {i}")
                 key_prefix = f"layer_{i}"
-                layer_config['type'] = st.selectbox("Distribution Type", ['linear', 'radial', 'quadrant', 'custom'], index=['linear', 'radial', 'quadrant', 'custom'].index(layer_config.get('type', 'linear')), key=f"{key_prefix}_type")
-                prob_range = st.slider("Probability Range", 0.0, 1.0, (layer_config.get('min_p', 0.0), layer_config.get('max_p', 1.0)), key=f"{key_prefix}_prob")
-                layer_config['min_p'], layer_config['max_p'] = prob_range
-                st.write("Active Area")
-                x_range = st.slider("X-Axis Range", 0.0, 1.0, (layer_config.get('start_pos', (0.0, 0.0))[0], layer_config.get('end_pos', (1.0, 1.0))[0]), key=f"{key_prefix}_x_range")
-                y_range = st.slider("Y-Axis Range", 0.0, 1.0, (layer_config.get('start_pos', (0.0, 0.0))[1], layer_config.get('end_pos', (1.0, 1.0))[1]), key=f"{key_prefix}_y_range")
-                layer_config['start_pos'], layer_config['end_pos'] = (x_range[0], y_range[0]), (x_range[1], y_range[1])
-                if layer_config['type'] == 'linear': layer_config['direction'] = st.selectbox("Direction", ['horizontal-rightleft', 'horizontal-leftright', 'vertical-downup', 'vertical-updown'], key=f"{key_prefix}_linear_dir")
-                elif layer_config['type'] == 'radial': layer_config['position'] = st.selectbox("Peak Position", ['center', 'random', 'top-left', 'top-right', 'bottom-left', 'bottom-right'], key=f"{key_prefix}_radial_pos")
-                elif layer_config['type'] == 'quadrant':
-                    if 'quadrant_setups' not in layer_config: layer_config['quadrant_setups'] = []
-                    if st.button("＋ Add Quadrant", key=f"{key_prefix}_add_quad"):
-                        layer_config['quadrant_setups'].append({'quadrant': 'top-right', 'peak': 'center', 'diffusion': 'linear'})
-                    for j, quad_setup in enumerate(layer_config['quadrant_setups']):
-                        quad_key = f"{key_prefix}_quad_{j}"
-                        with st.expander(f"Setup {j+1}", expanded=True):
-                            quad_setup['quadrant'] = st.selectbox("Quadrant", ['top-left', 'top-right', 'bottom-left', 'bottom-right'], key=f"{quad_key}_quad")
-                            quad_setup['peak'] = st.selectbox("Peak", ['center', 'corner'], key=f"{quad_key}_peak")
-                            quad_setup['diffusion'] = st.selectbox("Diffusion", ['linear', 'radial'], key=f"{quad_key}_diffusion")
-                            if st.button("Delete", key=f"{quad_key}_delete", type="secondary"):
-                                layer_config['quadrant_setups'].pop(j)
+                
+                dist_types = ['linear', 'radial', 'quadrant', 'custom', 'empty']
+                layer_config['type'] = st.selectbox("Distribution Type", dist_types, index=dist_types.index(layer_config.get('type', 'linear')), key=f"{key_prefix}_type")
+                
+                # --- Refactored: Conditionally display options based on type ---
+                if layer_config['type'] != 'empty':
+                    st.write("Probability Range")
+                    prob_col1, prob_col2 = st.columns(2)
+                    with prob_col1:
+                        layer_config['min_p'] = st.number_input("Min", 0.0, 1.0, layer_config.get('min_p', 0.0), key=f"{key_prefix}_min_p", label_visibility="collapsed", placeholder="Min")
+                    with prob_col2:
+                        layer_config['max_p'] = st.number_input("Max", 0.0, 1.0, layer_config.get('max_p', 1.0), key=f"{key_prefix}_max_p", label_visibility="collapsed", placeholder="Max")
+
+                    st.write("Active Area")
+                    x_range = st.slider("X-Axis Range", 0.0, 1.0, (layer_config.get('start_pos', (0.0, 0.0))[0], layer_config.get('end_pos', (1.0, 1.0))[0]), key=f"{key_prefix}_x_range")
+                    y_range = st.slider("Y-Axis Range", 0.0, 1.0, (layer_config.get('start_pos', (0.0, 0.0))[1], layer_config.get('end_pos', (1.0, 1.0))[1]), key=f"{key_prefix}_y_range")
+                    layer_config['start_pos'], layer_config['end_pos'] = (x_range[0], y_range[0]), (x_range[1], y_range[1])
+                    
+                    if layer_config['type'] == 'linear': layer_config['direction'] = st.selectbox("Direction", ['horizontal-rightleft', 'horizontal-leftright', 'vertical-downup', 'vertical-updown'], key=f"{key_prefix}_linear_dir")
+                    elif layer_config['type'] == 'radial': layer_config['position'] = st.selectbox("Peak Position", ['center', 'random', 'top-left', 'top-right', 'bottom-left', 'bottom-right'], key=f"{key_prefix}_radial_pos")
+                    elif layer_config['type'] == 'quadrant':
+                        if 'quadrant_setups' not in layer_config: layer_config['quadrant_setups'] = []
+                        if st.button("＋ Add Quadrant", key=f"{key_prefix}_add_quad"):
+                            layer_config['quadrant_setups'].append({'quadrant': 'top-right', 'peak': 'center', 'diffusion': 'linear'})
+                        for j, quad_setup in enumerate(layer_config['quadrant_setups']):
+                            quad_key = f"{key_prefix}_quad_{j}"
+                            with st.expander(f"Setup {j+1}", expanded=True):
+                                quad_setup['quadrant'] = st.selectbox("Quadrant", ['top-left', 'top-right', 'bottom-left', 'bottom-right'], key=f"{quad_key}_quad")
+                                quad_setup['peak'] = st.selectbox("Peak", ['center', 'corner'], key=f"{quad_key}_peak")
+                                quad_setup['diffusion'] = st.selectbox("Diffusion", ['linear', 'radial'], key=f"{quad_key}_diffusion")
+                                if st.button("Delete", key=f"{quad_key}_delete", type="secondary"):
+                                    layer_config['quadrant_setups'].pop(j)
+                                    st.rerun()
+                    elif layer_config['type'] == 'custom':
+                        st.write("Draw a mask for the distribution.")
+                        stroke_width = st.slider("Brush Size", 1, 50, 20, key=f"{key_prefix}_stroke")
+                        canvas_result = st_canvas(
+                            fill_color="rgba(0, 0, 0, 1)",
+                            stroke_width=stroke_width,
+                            stroke_color="rgba(255, 255, 255, 1)", # should make this dynamically match the layers' color
+                            background_color="rgba(0, 0, 0, 0)",
+                            update_streamlit=True,
+                            height=300,
+                            width=300,
+                            drawing_mode="freedraw",
+                            key=f"{key_prefix}_canvas",
+                        )
+                        if st.button("Apply Drawing", key=f"{key_prefix}_apply_drawing"):
+                            if canvas_result.image_data is not None:
+                                # Use the alpha channel as the mask for smooth, anti-aliased edges
+                                mask_alpha = canvas_result.image_data[:, :, 3].astype(np.float32) / 255.0
+                                
+                                # Convert to PIL Image to resize it to the main grid size
+                                pil_img = Image.fromarray(mask_alpha)
+                                resized_pil_img = pil_img.resize((st.session_state.grid_size, st.session_state.grid_size), Image.Resampling.LANCZOS)
+                                
+                                # Convert back to a numpy array and store in the layer configuration
+                                resized_mask = np.array(resized_pil_img)
+                                layer_config['custom_mask'] = resized_mask
+                                st.success("Drawing has been applied as a mask.")
+                                # Rerun to update the visualizations with the new mask
                                 st.rerun()
-                elif layer_config['type'] == 'custom':
-                    st.write("Draw a mask for the distribution.")
-                    stroke_width = st.slider("Brush Size", 1, 50, 20, key=f"{key_prefix}_stroke")
-                    canvas_result = st_canvas(
-                        fill_color="rgba(0, 0, 0, 1)",
-                        stroke_width=stroke_width,
-                        stroke_color="rgba(255, 255, 255, 1)", # should make this dynamically match the layers' color
-                        background_color="rgba(0, 0, 0, 0)",
-                        update_streamlit=True,
-                        height=300,
-                        width=300,
-                        drawing_mode="freedraw",
-                        key=f"{key_prefix}_canvas",
-                    )
-                    if st.button("Apply Drawing", key=f"{key_prefix}_apply_drawing"):
-                        if canvas_result.image_data is not None:
-                            # Use the alpha channel as the mask for smooth, anti-aliased edges
-                            mask_alpha = canvas_result.image_data[:, :, 3].astype(np.float32) / 255.0
-                            
-                            # Convert to PIL Image to resize it to the main grid size
-                            pil_img = Image.fromarray(mask_alpha)
-                            resized_pil_img = pil_img.resize((st.session_state.grid_size, st.session_state.grid_size), Image.Resampling.LANCZOS)
-                            
-                            # Convert back to a numpy array and store in the layer configuration
-                            resized_mask = np.array(resized_pil_img)
-                            layer_config['custom_mask'] = resized_mask
-                            st.success("Drawing has been applied as a mask.")
-                            # Rerun to update the visualizations with the new mask
-                            st.rerun()
 
                 # if st.button("🗑️ Remove Layer", key=f"{key_prefix}_remove", use_container_width=True):
                 #     st.session_state.distributions.pop(i)
