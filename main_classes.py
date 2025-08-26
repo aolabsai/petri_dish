@@ -478,13 +478,14 @@ class Assay:
         else:
             return np.random.choice(self.ACTIONS[1:])
             
-    def set_agent_hyperparameters(self, C_impression_initial=10, C_impression_match=1, C_pruning=1, C_pruning_cutoff=5):
+    def set_agent_hyperparameters(self, C_impression_initial=10, C_impression_match=1, C_pruning=1, C_pruning_cutoff=5, save_C_info=True):
         if self.debug_mode:
             print("Cannot set hyperparameters in random/debug mode.")
             return
+
         for agent_dict in self.agents:
             a = agent_dict['agent']
-            a._save_C_info = True
+            a._save_C_info = save_C_info
             a.C_impression_initial = C_impression_initial
             a.C_impression_match = C_impression_match
             a.C_pruning = C_pruning
@@ -528,8 +529,6 @@ class Assay:
                         self.meta_history[self.step, i, self.metainfo:] = np.random.randint(0, s, self.num_learning_types)
                 else:
                     agent_instance = agent_dict['agent']
-                    if np.random.rand() > 0.95: agent_instance.Pleasure += 1
-                    if np.random.rand() > 0.98: agent_instance.Pain += 1
                     
                     self.meta_history[self.step, i, 0] = sum(agent_instance.astate[0, agent_instance.arch.I[0]])
                     self.meta_history[self.step, i, 1] = sum(agent_instance.astate[0, agent_instance.arch.I[1]])

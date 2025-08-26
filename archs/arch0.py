@@ -1,13 +1,9 @@
 import ao_core as ao
 
 env_input_layers = 3
-stimuli_intensity = 9
-
 
 input_channels = env_input_layers
-input_intensity = stimuli_intensity
 input_channel_size = 9 # of grid points around agent counted as input
-input_channel_neurons = input_channel_size * input_intensity # for 1 layer
 
 def updateArch(stimuli_intensity):
 
@@ -33,7 +29,7 @@ def updateArch(stimuli_intensity):
         z_nid = Agent.arch.Z__flat[0] # id of z neuron
         instinct_meta = "instinct - pleasure"
 
-        if sum(INPUT[0:input_channel_neurons]) >= input_pleasure_threshold:
+        if sum(INPUT[0:neurons_per_input_channel]) >= input_pleasure_threshold:
             instinct_response = [1, "c0 pleasure instinct", [z_nid, instinct_label, instinct_meta]]
             Agent.Pleasure += 1
         else:
@@ -50,7 +46,7 @@ def updateArch(stimuli_intensity):
         z_nid = Agent.arch.Z__flat[0] # id of z neuron
         instinct_meta = "instinct - pain"
 
-        if sum(INPUT[0:input_channel_neurons]) <= input_pain_threshold:
+        if sum(INPUT[0:neurons_per_input_channel]) <= input_pain_threshold:
             instinct_response = [1, "c1 pain instinct", [z_nid, instinct_label, instinct_meta]]
             Agent.Pain += 1
         else:

@@ -58,14 +58,20 @@ else:
         Neurons' lookup tables maintain a record of how often each row is used for inference during CGA (in ao.agent.neuron.c_info). This information is used to prune lookup tables so that stale, unused rows are deleted, the desired emergent (or agent-level affect) being the "forgetting" component of classical conditioning. Set those parameters below:
         """)
         
+
         sim_col1, sim_col2, sim_col3 = st.columns(3)
         with sim_col1:
-            C_impression_initial = st.number_input("Initial learning experience impression strength", min_value=1, max_value=100, value=5, help="The number added to the memory'") # strength of impression when first added to neuron from C learning event
-            C_impression_match = st.number_input("Impression increment if lookup match", min_value=1, max_value=C_impression_initial, value=2, help="The number incremented when there is a lookup match")  # increment of impression if accessed by neuron during inference
-            C_pruning = st.number_input("Impression decrement for all other rows that did not match", min_value=1, max_value=C_impression_match, value=1, help="The number decremented when no lookup match") # decrement of impression in C_info if not accessed by neuron during inference
-            C_pruning_cutoff = st.number_input("Number below which memories are deleted from neurons' lookup tables", min_value=1, max_value=100, value=1, help="Cutoff value below which memories are deleted") # value below which impressions are pruned from neuron)
+            instincts_checkbox = st.checkbox("Enable instincts", value=True, help='Disabling this will disable new learning')
 
         with sim_col2:
+            save_C_info = st.checkbox("Enable neuron-level pruning for agent-level forgetting", value=False, help="")
+            if save_C_info: st.warning('This is an experimental feature still in development; to use it be sure to run on [this branch](https://github.com/aolabsai/ao_core/tree/research_expansion/neuron_pruning) of ao_core', icon="⚠️")
+            C_impression_initial = st.number_input("Initial learning experience impression strength", min_value=1, max_value=100, value=5, help="The number added to the memory'", disabled=not save_C_info) # strength of impression when first added to neuron from C learning event
+            C_impression_match = st.number_input("Impression increment if lookup match", min_value=1, max_value=C_impression_initial, value=2, help="The number incremented when there is a lookup match", disabled=not save_C_info)  # increment of impression if accessed by neuron during inference
+            C_pruning = st.number_input("Impression decrement for all other rows that did not match", min_value=1, max_value=C_impression_match, value=1, help="The number decremented when no lookup match", disabled=not save_C_info) # decrement of impression in C_info if not accessed by neuron during inference
+            C_pruning_cutoff = st.number_input("Number below which memories are deleted from neurons' lookup tables", min_value=1, max_value=100, value=1, help="Cutoff value below which memories are deleted", disabled=not save_C_info) # value below which impressions are pruned from neuron)
+
+        with sim_col3:
             pretrain_agents = st.checkbox("Pre-train agents on random data", help="Helpful to increase agent's response variance by pre-populating agent neurons' lookup tables, giving a wider range before lessons from learning kick in and override.")
             if pretrain_agents: pretrain_agent_steps = st.number_input("Add random states to agents", min_value=0, max_value=100, value=10)
 
@@ -79,15 +85,17 @@ else:
             else:
                 assay_loadagents = ""
             assay = Assay(petri_dish=petri_dish, num_agents=num_agents_input, start_logic=start_logic_input, agent_archs=agent_archs_param, steps=steps_input, assay_loadagents=assay_loadagents)
-            assay.set_agent_hyperparameters(
+            
+            if save_C_info: assay.set_agent_hyperparameters(
                 C_impression_initial, # strength of impression when first added to neuron from C learning event
                 C_impression_match, # increment of impression if accessed by neuron during inference
                 C_pruning, # decrement of impression in C_info if not accessed by neuron during inference
                 C_pruning_cutoff, # value below which impressions are pruned from neuron)
+                save_C_info # whether or not to disable this feature
 )
             if pretrain_agents: assay.pretrain_random(pretrain_agent_steps)
 
-            assay.INSTINCTS = True # to activate training, let's gooooo
+            assay.INSTINCTS = instincts_checkbox # to activate training, let's gooooo
             assay.run_step(steps=steps_input)
             simulation_data = assay.export_data()
             st.session_state.simulation_data = simulation_data
