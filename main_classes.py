@@ -21,7 +21,7 @@ class PetriDish:
         - num_layers: int, the number of layers (each representing a different stimulus).
         - distributions: list of dicts, parameters for the distribution of each layer.
           Each dict can have:
-            - 'type': 'linear', 'radial', 'quadrant', 'custom', or 'empty'.
+            - 'type': 'linear', 'radial', 'quadrant', 'custom', 'full', or 'empty'.
             - 'start_pos': tuple (x, y), optional. The top-left corner of the active distribution area (range [0,1]). Defaults to (0,0).
             - 'end_pos': tuple (x, y), optional. The bottom-right corner of the active distribution area (range [0,1]). Defaults to (1,1).
             - For 'linear':
@@ -38,6 +38,8 @@ class PetriDish:
               - 'min_p', 'max_p': float, probability range for the gradient.
             - For 'custom':
               - 'custom_mask': A numpy array representing the user's drawing, resized to the grid size.
+            - For 'full':
+              - This type creates a layer fully saturated with stimuli.
             - For 'empty':
               - This type creates a blank layer with no stimuli.
         - stimuli_intensity: int (default 9), the maximum intensity of a stimulus at a point (range from 0 to n).
@@ -166,7 +168,10 @@ class PetriDish:
             else:
                 p_grid = np.zeros_like(self.X)
 
-        # --- Added block to handle the 'empty' distribution type ---
+        elif t == 'full':
+            p_grid[:] = 1
+            pass
+
         elif t == 'empty':
             # p_grid is already initialized to zeros, so this creates an empty layer.
             pass

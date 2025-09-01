@@ -29,8 +29,8 @@ with st.sidebar:
     if "grid_size" in st.session_state:
         def_grid_size = st.session_state.grid_size
     else:
-        def_grid_size = 150
-    st.session_state.grid_size = st.slider("Grid Size", 50, 500, def_grid_size, 10)
+        def_grid_size = 50
+    st.session_state.grid_size = st.slider("Grid Size", 10, 500, def_grid_size, 10)
     st.session_state.stimuli_intensity = st.slider("Max Stimuli Intensity (n)", min_value=1, max_value=50, value=1, step=1)
     
     # st.header("Layer Management")
@@ -85,11 +85,15 @@ else:
                 st.subheader(layer_headers[i])
                 key_prefix = f"layer_{i}"
                 
-                dist_types = ['linear', 'radial', 'quadrant', 'custom', 'empty']
+                dist_types = ['linear', 'radial', 'quadrant', 'custom', 'full', 'empty']
                 layer_config['type'] = st.selectbox("Distribution Type", dist_types, index=dist_types.index(layer_config.get('type', 'linear')), key=f"{key_prefix}_type")
                 
                 # --- Refactored: Conditionally display options based on type ---
-                if layer_config['type'] != 'empty':
+                if layer_config['type'] == 'empty':
+                    pass
+                elif layer_config['type'] == 'full':
+                    pass
+                else:
                     st.write("Probability Range")
                     prob_col1, prob_col2 = st.columns(2)
                     with prob_col1:
