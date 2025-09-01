@@ -21,12 +21,6 @@ st.set_page_config(
 
 # --- STREAMLIT APP UI AND LOGIC ---
 
-# st.sidebar.title("Controls")
-# uploaded_file = st.sidebar.file_uploader(
-#     "Upload experiment data",
-#     type=["pkl"],
-#     help="Upload a pickle file containing agent experiment data."
-# )
 st.title("Continuous Learning Benchmark: Petri Dish Simulation")
 
 # --- Initialize Session State ---
@@ -43,15 +37,143 @@ else:
         Configure and run a new simulation. The results will be displayed in the views below.
         """)
         debug_mode_checkbox = st.checkbox("Enable debug mode", value=False, help='If checked, agents will move randomly (sets agent_archs="random").')
-        reuse_agents_from_assay = st.checkbox("Reuse agents from previous assay", value=False, help="If checked, assay will be run with agents from previous trial. WNN agent are natively stateful with memories are persistent across assays.", disabled="assay" not in st.session_state)
+        st.session_state.reuse_agents_from_assay = st.checkbox("Reuse agents from previous assay", value=False, help="If checked, assay will be run with agents from previous trial. WNN agent are natively stateful with memories are persistent across assays.", disabled="assay" not in st.session_state)
         
-        sim_col1, sim_col2, sim_col3 = st.columns(3)
+        sim_col1, sim_col2 = st.columns(2)
         with sim_col1:
-            num_agents_input = st.slider("Number of Agents", min_value=1, max_value=100, value=10, help="Select the number of agents to include in the simulation.", disabled=reuse_agents_from_assay)
-        with sim_col2:
             start_logic_input = st.selectbox("Agent Starting Positions", options=['random', 'center', 'cardinal', 'quadrants', 'corners'], index=0, help="Choose the initial placement pattern for the agents.")
-        with sim_col3:
+        with sim_col2:
             steps_input = st.slider("Simulation Steps", min_value=1, max_value=1000, value=10, help="Set the total number of time steps for the simulation.")
+
+    # --- New Section: Configure Agent Sensory Range ---
+    with st.expander("Configure Agent Sensory Range", expanded=True):
+        
+        num_agents_input = st.slider("Number of Agents", min_value=1, max_value=100, value=10, help="Select the number of agents to include in the simulation.", disabled=st.session_state.reuse_agents_from_assay)
+        
+        st.markdown("""
+        ---
+        Define how agents perceive their immediate environment using different sensory field shapes and extents.
+        """)
+        
+        st.session_state.sensory_shape_input = st.selectbox(
+            "Sensory Shape",
+            options=['square', 'circle', 'diamond', 'triangle'],
+            index=0,
+            help="Choose the geometric shape of the agent's sensory field.",
+            disabled=st.session_state.reuse_agents_from_assay
+        )
+        
+        sensory_field_col1, sensory_field_col2 = st.columns(2) 
+
+        
+        # Determine if horizontal radius slider should be disabled
+        disable_horizontal_radius = (st.session_state.sensory_shape_input in ['square', 'circle'])
+
+
+        with sensory_field_col1:
+
+            sensory_col1, sensory_col2 = st.columns(2)
+    
+            with sensory_col1:
+                sensory_radius_vertical = st.slider(
+                    "Vertical Sensory Radius (Rv)",
+                    min_value=1,
+                    max_value=5,
+                    value=1,
+                    help="Set the vertical radius of the sensory field (in grid points). For square/circle, this defines the overall radius.",
+                    disabled=st.session_state.reuse_agents_from_assay
+                )
+            
+            with sensory_col2:
+                sensory_radius_horizontal = st.slider(
+                    "Horizontal Sensory Radius (Rh)",
+                    min_value=1,
+                    max_value=5,
+                    value=sensory_radius_vertical, # Default to vertical radius if disabled
+                    disabled=disable_horizontal_radius or st.session_state.reuse_agents_from_assay,
+                    help="Set the horizontal radius of the sensory field (in grid points). Only applicable for 'diamond' and 'triangle' shapes."
+                )
+            
+            # For square/circle, ensure horizontal radius matches vertical for consistency in underlying logic
+            if disable_horizontal_radius:
+                sensory_radius_horizontal = sensory_radius_vertical
+
+            # Calculate and display Encephalization Quotient
+            if sensory_radius_vertical > 0:
+                encephalization_quotient = sensory_radius_horizontal / sensory_radius_vertical
+                st.metric(label="Encephalization Quotient (Rh / Rv)", value=f"{encephalization_quotient:.2f}",
+                        help="Ratio of horizontal sensory radius to vertical sensory radius. Indicates the relative 'width' of perception compared to 'height'.")
+            else:
+                st.metric(label="Encephalization Quotient (Rh / Rv)", value="N/A",
+                        help="Ratio of horizontal sensory radius to vertical sensory radius. Indicates the relative 'width' of perception compared to 'height'.")
+
+
+        with sensory_field_col2:
+
+            st.subheader("Visualizing Sensory Input (for 1 stimuli layer)")
+            st.markdown("This visualization shows what an agent's sensory input would look like for a single layer based on your current settings, with the agent at the center.")
+
+            # Create a blank grid for visualization
+            max_radius = max(sensory_radius_vertical, sensory_radius_horizontal)
+            grid_size_viz = (max_radius * 2) + 1
+            sensory_grid = np.zeros((grid_size_viz, grid_size_viz))
+            center_x, center_y = max_radius, max_radius # Agent at the center of the visualization grid
+            
+            st.session_state.sensory_field_layer_size = 0
+            # Populate sensory grid based on shape and radii
+            for i in range(grid_size_viz):
+                for j in range(grid_size_viz):
+                    is_in_sensory_field = False
+                    # Relative coordinates from the agent's center
+                    dy_rel = i - center_x # vertical offset
+                    dx_rel = j - center_y # horizontal offset
+
+                    if st.session_state.sensory_shape_input == 'square':
+                        if abs(dy_rel) <= sensory_radius_vertical and abs(dx_rel) <= sensory_radius_vertical:
+                            is_in_sensory_field = True
+                    elif st.session_state.sensory_shape_input == 'circle':
+                        if (dy_rel**2 + dx_rel**2) <= sensory_radius_vertical**2:
+                            is_in_sensory_field = True
+                    elif st.session_state.sensory_shape_input == 'diamond':
+                        # L1 norm based on vertical and horizontal radii
+                        # abs(dy_rel)/Rv + abs(dx_rel)/Rh <= 1.0
+                        if (sensory_radius_vertical > 0 and sensory_radius_horizontal > 0) and \
+                        (abs(dy_rel) / sensory_radius_vertical + abs(dx_rel) / sensory_radius_horizontal <= 1.0):
+                            is_in_sensory_field = True
+                    elif st.session_state.sensory_shape_input == 'triangle':
+                        # Triangle pointing "up" (towards smaller i values on the grid, if agent faces that way)
+                        # Apex: (center_x - Rv, center_y)
+                        # Base: at i = center_x + Rv, from center_y - Rh to center_y + Rh
+                        
+                        # Check vertical bounds
+                        if dy_rel >= -sensory_radius_vertical and dy_rel <= sensory_radius_vertical:
+                            # Calculate half-width at current vertical offset
+                            # y_rel from apex is dy_rel + Rv (ranges from 0 to 2*Rv)
+                            y_from_apex_proportional = (dy_rel + sensory_radius_vertical) / (2 * sensory_radius_vertical + 1e-9) # Add small epsilon to avoid div by zero
+                            
+                            current_half_width = sensory_radius_horizontal * y_from_apex_proportional
+                            
+                            if abs(dx_rel) <= current_half_width:
+                                is_in_sensory_field = True
+                    
+                    if is_in_sensory_field:
+                        sensory_grid[i, j] = 0.5 # Indicate sensory field
+                        st.session_state.sensory_field_layer_size += 1
+            
+            # Mark the agent's center
+            sensory_grid[center_x, center_y] = 1.0 # Brighter to indicate agent's position
+
+            # Plotting the sensory grid
+            fig_sensory, ax_sensory = plt.subplots(figsize=(3, 3))
+            ax_sensory.imshow(sensory_grid, cmap='viridis', origin='upper', vmin=0, vmax=1)
+            ax_sensory.set_xticks(np.arange(-.5, grid_size_viz, 1), minor=True)
+            ax_sensory.set_yticks(np.arange(-.5, grid_size_viz, 1), minor=True)
+            ax_sensory.grid(which='minor', color='black', linestyle='-', linewidth=0.5)
+            ax_sensory.set_xticks([])
+            ax_sensory.set_yticks([])
+            ax_sensory.set_title(f"Agent Sensory Field ({st.session_state.sensory_shape_input.capitalize()}, Rv:{sensory_radius_vertical}, Rh:{sensory_radius_horizontal})")
+            st.pyplot(fig_sensory)
+            plt.close(fig_sensory)
 
     with st.expander("Set Agent-level hyperparameters:", expanded=False):
         st.markdown("""
@@ -92,13 +214,24 @@ else:
     if st.button("▶️ Run Simulation"):
         with st.spinner(f"Running simulation for {steps_input} steps..."):
             petri_dish = st.session_state.saved_dish
-            agent_archs_param = "random" if debug_mode_checkbox else updateArch(st.session_state.stimuli_intensity, st.session_state.pain_threshold, st.session_state.pleasure_threshold) # the arch that is imported from the "archs" folder
+            agent_archs_param = "random" if debug_mode_checkbox else updateArch(st.session_state.sensory_field_layer_size, st.session_state.stimuli_intensity, st.session_state.pain_threshold, st.session_state.pleasure_threshold) # the arch that is imported from the "archs" folder
             
-            if reuse_agents_from_assay and "assay" in st.session_state:
+            if st.session_state.reuse_agents_from_assay and "assay" in st.session_state:
                 assay_loadagents = st.session_state.assay
             else:
                 assay_loadagents = ""
-            assay = Assay(petri_dish=petri_dish, num_agents=num_agents_input, start_logic=start_logic_input, agent_archs=agent_archs_param, steps=steps_input, assay_loadagents=assay_loadagents)
+            # Pass sensory parameters to Assay
+            assay = Assay(
+                petri_dish=petri_dish,
+                num_agents=num_agents_input,
+                start_logic=start_logic_input,
+                agent_archs=agent_archs_param,
+                steps=steps_input,
+                assay_loadagents=assay_loadagents,
+                sensory_shape=st.session_state.sensory_shape_input,
+                sensory_radius_vertical=sensory_radius_vertical,
+                sensory_radius_horizontal=sensory_radius_horizontal
+            )
             
             if save_C_info: assay.set_agent_hyperparameters(
                 C_impression_initial, # strength of impression when first added to neuron from C learning event
@@ -311,7 +444,7 @@ else:
         with st.expander("Learning Events and Memory", expanded=True):
             col3, col4 = st.columns(2)
             with col3:
-                st.subheader("Control Events")
+                st.subheader("Instinct Activations (control events)")
                 st.text("Total number of learning events over time.")
                 if set(learning_event_cols) == {'Pleasure', 'Pain'}:
                     if st.checkbox("View combined plot (Pleasure - Pain)"):
@@ -336,7 +469,7 @@ else:
                 st.write("")
                 st.write("")
                 st.write("")
-                st.subheader("Experience States")
+                st.subheader("Lookup-table Rows")
                 st.text("Total unique memories in the output neuron.")
                 states_chart = alt.Chart(combined_data).mark_line().encode(
                     x=alt.X('Time', axis=alt.Axis(title="")), y=alt.Y('Experience States', axis=alt.Axis(title="")),

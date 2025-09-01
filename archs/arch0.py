@@ -5,7 +5,7 @@ env_input_layers = 3
 input_channels = env_input_layers
 input_channel_size = 9 # of grid points around agent counted as input
 
-def updateArch(stimuli_intensity, pain_threshold, pleasure_threshold):
+def updateArch(input_channel_size, stimuli_intensity, pain_threshold, pleasure_threshold):
 
     neurons_per_input_channel = input_channel_size * stimuli_intensity 
     # create Agent architecture (neuronal configuration)

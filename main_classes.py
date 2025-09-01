@@ -1,11 +1,5 @@
-# petridish class
-import numpy as np
-import matplotlib.pyplot as plt
-import colorsys
-from matplotlib.colors import ListedColormap
+# main_classes.py
 
-# assay class
-import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import colorsys
@@ -13,11 +7,10 @@ from matplotlib.colors import ListedColormap
 from matplotlib.animation import FuncAnimation
 from IPython.display import HTML, display
 
-import ao_core as ao
+import pandas as pd
+import ao_core as ao # Assuming ao_core is installed and accessible
 
 # --- PetriDish Class Definition ---
-# The class is updated with a corrected visualize_combined method.
-
 class PetriDish:
     def __init__(self, size=100, num_layers=3, distributions=None, stimuli_intensity=9):
         """
@@ -28,7 +21,7 @@ class PetriDish:
         - num_layers: int, the number of layers (each representing a different stimulus).
         - distributions: list of dicts, parameters for the distribution of each layer.
           Each dict can have:
-            - 'type': 'linear', 'radial', 'quadrant', 'custom', or 'empty'.
+            - 'type': 'linear', 'radial', 'quadrant', 'custom', 'full', or 'empty'.
             - 'start_pos': tuple (x, y), optional. The top-left corner of the active distribution area (range [0,1]). Defaults to (0,0).
             - 'end_pos': tuple (x, y), optional. The bottom-right corner of the active distribution area (range [0,1]). Defaults to (1,1).
             - For 'linear':
@@ -45,6 +38,8 @@ class PetriDish:
               - 'min_p', 'max_p': float, probability range for the gradient.
             - For 'custom':
               - 'custom_mask': A numpy array representing the user's drawing, resized to the grid size.
+            - For 'full':
+              - This type creates a layer fully saturated with stimuli.
             - For 'empty':
               - This type creates a blank layer with no stimuli.
         - stimuli_intensity: int (default 9), the maximum intensity of a stimulus at a point (range from 0 to n).
@@ -173,7 +168,10 @@ class PetriDish:
             else:
                 p_grid = np.zeros_like(self.X)
 
-        # --- Added block to handle the 'empty' distribution type ---
+        elif t == 'full':
+            p_grid[:] = 1
+            pass
+
         elif t == 'empty':
             # p_grid is already initialized to zeros, so this creates an empty layer.
             pass
@@ -184,17 +182,14 @@ class PetriDish:
         final_p_grid = np.where(active_mask, p_grid, 0)
         return np.clip(final_p_grid, 0, 1)
 
-
-    def get_stimuli(self, coordinates, shape='square', radius=1, mode='count', weighting=None, sigma=None):
+    def get_stimuli(self, center_coordinates, relative_offsets, mode='count', weighting=None, sigma=None):
         """
-        Get stimuli values at or around a given coordinate.
+        Get stimuli values for a set of relative offsets around a given center coordinate.
 
         Parameters:
-        - coordinates: tuple (int, int), the (x, y) center coordinate.
-        - shape: str (default 'square'), the shape of the area.
-                 Options: 'circle', 'square'.
-        - radius: int (default 0), the radius of the area to consider. If 0,
-                  only the center coordinate is checked.
+        - center_coordinates: tuple (int, int), the (x, y) center coordinate of the agent.
+        - relative_offsets: list of tuples (int, int), (dx, dy) relative to center_coordinates.
+                            These offsets represent the points within the agent's sensory field.
         - mode: str (default 'count'), the operation to perform.
                 Options: 'concentration' (returns a float from 0.0 to 1.0),
                          'count' (returns an integer count of active stimuli).
@@ -202,7 +197,7 @@ class PetriDish:
                      within the radius. Only used when mode is 'concentration'.
                      Options: 'uniform', 'linear', 'gaussian'.
         - sigma: float, optional. The standard deviation for 'gaussian'
-                 weighting. Defaults to radius / 2.0.
+                 weighting. Defaults to max_distance / 2.0.
 
         Returns:
         - list of int or list of float: Based on the mode, returns a list of
@@ -210,51 +205,56 @@ class PetriDish:
         
         Raises:
         - IndexError: if the coordinates are outside the grid boundaries.
-        - ValueError: if shape, weighting, or mode parameters are invalid.
+        - ValueError: if weighting or mode parameters are invalid.
         """
-        x, y = coordinates
+        center_x, center_y = center_coordinates
         
-        if not (0 <= x < self.size and 0 <= y < self.size):
-            raise IndexError(f"Coordinates ({x}, {y}) are out of bounds for a grid of size {self.size}x{self.size}.")
+        if not (0 <= center_x < self.size and 0 <= center_y < self.size):
+            raise IndexError(f"Center coordinates ({center_x}, {center_y}) are out of bounds for a grid of size {self.size}x{self.size}.")
             
-        if radius == 0:
-            return [int(layer[y, x]) for layer in self.layers]
+        # Absolute coordinates to check and their distances from the center
+        absolute_coords = []
+        distances_from_center = [] 
+        
+        for dx, dy in relative_offsets:
+            abs_x, abs_y = center_x + dx, center_y + dy
+            # Only add valid coordinates within dish bounds
+            if 0 <= abs_x < self.size and 0 <= abs_y < self.size:
+                absolute_coords.append((abs_y, abs_x)) # Store as (row, col) for numpy indexing
+                distances_from_center.append(np.sqrt(dx**2 + dy**2)) # Euclidean distance for weighting
 
-        jj, ii = np.indices((self.size, self.size))
-
-        if shape == 'circle':
-            distances = np.sqrt((ii - x)**2 + (jj - y)**2)
-        elif shape == 'square':
-            distances = np.maximum(np.abs(ii - x), np.abs(jj - y))
-        else:
-            raise ValueError("Shape must be 'circle' or 'square'.")
-            
-        mask = distances <= radius
-
-        if not np.any(mask):
+        if not absolute_coords:
             return [0.0 if mode == 'concentration' else 0] * self.num_layers
 
+        # Convert to numpy arrays for easier processing
+        abs_ys, abs_xs = zip(*absolute_coords)
+        distances_from_center = np.array(distances_from_center)
+        
         if mode == 'count':
             counts = []
             for layer in self.layers:
-                count = np.sum(layer[mask])
+                # Sum stimuli at the valid absolute coordinates
+                layer_values = layer[abs_ys, abs_xs]
+                count = np.sum(layer_values)
                 counts.append(int(count))
             return counts
 
         elif mode == 'concentration':
-            if weighting == 'uniform':
-                weights = mask.astype(float)
-            elif weighting == 'linear':
-                weights = np.maximum(0, 1 - distances / radius)
-                weights[~mask] = 0
+            weights = np.ones_like(distances_from_center, dtype=float) # Default uniform
+            
+            if weighting == 'linear':
+                max_dist = np.max(distances_from_center) if distances_from_center.size > 0 else 1.0
+                if max_dist > 0:
+                    weights = np.maximum(0, 1 - distances_from_center / max_dist)
+                else: # All points are at the center, or only one point
+                    weights = np.ones_like(distances_from_center, dtype=float)
             elif weighting == 'gaussian':
                 if sigma is None:
-                    sigma = radius / 2.0
+                    sigma = (np.max(distances_from_center) if distances_from_center.size > 0 else 1.0) / 2.0
                 if sigma <= 0:
                     raise ValueError("Sigma for Gaussian weighting must be positive.")
-                weights = np.exp(-distances**2 / (2 * sigma**2))
-                weights[~mask] = 0
-            else:
+                weights = np.exp(-distances_from_center**2 / (2 * sigma**2))
+            elif weighting != 'uniform':
                 raise ValueError("Weighting must be 'uniform', 'linear', or 'gaussian'.")
 
             total_weight = np.sum(weights)
@@ -263,7 +263,8 @@ class PetriDish:
                 
             concentrations = []
             for layer in self.layers:
-                weighted_sum = np.sum(layer * weights)
+                layer_values = layer[abs_ys, abs_xs]
+                weighted_sum = np.sum(layer_values * weights)
                 concentration = weighted_sum / total_weight
                 concentrations.append(concentration)
                 
@@ -375,16 +376,14 @@ class PetriDish:
         
         return fig
     
-
-
-
-
 class Assay:
     """
     Manages and runs experiments with multiple agents on a PetriDish.
     Includes a debug mode if agent_archs="random".
     """
-    def __init__(self, petri_dish, num_agents=5, start_logic='random', start_positions=None, agent_archs="random", assay_loadagents="", save_agent_meta=False, steps=1000):
+    def __init__(self, petri_dish, num_agents=5, start_logic='random', start_positions=None,
+                 agent_archs="random", assay_loadagents="", save_agent_meta=False, steps=1000,
+                 sensory_shape='square', sensory_radius_vertical=1, sensory_radius_horizontal=1): # Added sensory parameters
         self.metainfo = 7
         self.dish = petri_dish
         
@@ -396,9 +395,17 @@ class Assay:
             self.num_agents = assay_loadagents.num_agents
             self.agent_archs = assay_loadagents.agent_archs
             self.debug_mode = getattr(assay_loadagents, 'debug_mode', False)
+            # Carry over sensory settings from loaded assay
+            self.sensory_shape = assay_loadagents.sensory_shape
+            self.sensory_radius_vertical = assay_loadagents.sensory_radius_vertical
+            self.sensory_radius_horizontal = assay_loadagents.sensory_radius_horizontal
         else:
             self.num_agents = num_agents
             self.agent_archs = agent_archs
+            # Store new sensory settings
+            self.sensory_shape = sensory_shape
+            self.sensory_radius_vertical = sensory_radius_vertical
+            self.sensory_radius_horizontal = sensory_radius_horizontal
 
         if self.debug_mode:
             self.num_learning_types = 0
@@ -414,13 +421,12 @@ class Assay:
         self.step = 0
 
         self.INSTINCTS = True
-        self.sensory_shape = "square"
-        self.sensory_mode = "count"
-        self.sensory_radius = 1
-        self.sensory_binary_neurons = 9 * self.dish.stimuli_intensity
+        self.sensory_mode = "count" # Fixed to count as per binary input logic
+        # sensory_binary_neurons will be dynamically calculated in _get_agent_action
 
         self.ACTIONS = ['move_forward', 'turn_right', 'turn_left']
-        self.HEADINGS = {0: (-1, 0), 1: (0, 1), 2: (1, 0), 3: (0, -1)}
+        # Headings (dy, dx) for 'Up', 'Right', 'Down', 'Left' (0, 1, 2, 3)
+        self.HEADINGS = {0: (-1, 0), 1: (0, 1), 2: (1, 0), 3: (0, -1)} 
 
 
     def _initialize_agents(self, start_logic, start_positions, assay_loadagents):
@@ -458,28 +464,120 @@ class Assay:
             self.agents[i] = {
                 'id': i,
                 'pos': pos,
-                'heading': np.random.randint(0, 4),
+                'heading': np.random.randint(0, 4), # Initial random heading
                 'agent': agent
             }
             self.history[0, i, 0] = pos[0]
             self.history[0, i, 1] = pos[1]
-        
 
-    def _get_agent_action(self, agent):
+    def _get_sensory_offsets(self, shape, rv, rh, heading):
+        """
+        Generates a list of (dx, dy) relative coordinates for the sensory field,
+        rotated based on the agent's heading.
+        """
+        offsets = set() 
+        
+        # Determine maximum extent for iteration
+        max_r_combined = max(rv, rh)
+        
+        # Generate base offsets for heading 0 (agent facing upwards, i.e., dy = -1 direction)
+        for dy_rel in range(-max_r_combined, max_r_combined + 1):
+            for dx_rel in range(-max_r_combined, max_r_combined + 1):
+                is_in_base_field = False
+                
+                if shape == 'square':
+                    if abs(dy_rel) <= rv and abs(dx_rel) <= rv: # For square, Rv is used for both vertical and horizontal
+                        is_in_base_field = True
+                elif shape == 'circle':
+                    if (dx_rel**2 + dy_rel**2) <= rv**2: # For circle, Rv is the radius
+                        is_in_base_field = True
+                elif shape == 'diamond':
+                    # L1 norm based on vertical and horizontal radii
+                    if (rv > 0 and rh > 0) and \
+                       (abs(dy_rel) / rv + abs(dx_rel) / rh <= 1.0):
+                        is_in_base_field = True
+                elif shape == 'triangle':
+                    # Triangle pointing "up" (apex at (0, -rv), base at dy=rv, width 2*rh)
+                    if -rv <= dy_rel <= rv:
+                        # Calculate half-width at current vertical offset
+                        # y_from_apex_proportional ranges from 0 (at apex dy_rel=-rv) to 1 (at base dy_rel=rv)
+                        # Added 1e-9 to prevent division by zero if rv is 0 (though slider min_value=1)
+                        y_from_apex_proportional = (dy_rel + rv) / (2 * rv + 1e-9) 
+                        current_half_width = rh * y_from_apex_proportional
+                        if abs(dx_rel) <= current_half_width:
+                            is_in_base_field = True
+                
+                if is_in_base_field:
+                    offsets.add((dx_rel, dy_rel)) 
+
+        # Apply rotation based on heading (0:Up, 1:Right, 2:Down, 3:Left)
+        rotated_offsets = []
+        for dx_rel, dy_rel in offsets:
+            rotated_dx, rotated_dy = dx_rel, dy_rel # Default for heading 0 (Up)
+
+            if heading == 1: # Right (90 degrees clockwise from Up)
+                rotated_dx = dy_rel
+                rotated_dy = -dx_rel
+            elif heading == 2: # Down (180 degrees clockwise from Up)
+                rotated_dx = -dx_rel
+                rotated_dy = -dy_rel
+            elif heading == 3: # Left (270 degrees clockwise from Up)
+                rotated_dx = -dy_rel
+                rotated_dy = dx_rel
+            
+            rotated_offsets.append((rotated_dx, rotated_dy))
+            
+        return list(set(rotated_offsets)) # Return as list, removing any potential duplicates after rotation
+
+
+    def _get_agent_action(self, agent_dict):
         if self.random:
             return np.random.choice(self.ACTIONS)
         
-        stimuli_input = self.dish.get_stimuli(agent['pos'], shape=self.sensory_shape, radius=self.sensory_radius,  mode=self.sensory_mode)
+        agent_pos = agent_dict['pos']
+        agent_heading = agent_dict['heading']
+
+        # Generate rotated sensory offsets for the current agent's heading
+        relative_offsets = self._get_sensory_offsets(
+            self.sensory_shape,
+            self.sensory_radius_vertical,
+            self.sensory_radius_horizontal,
+            agent_heading
+        )
+        
+        # Dynamically set the size for binary neuron encoding based on the actual field size
+        current_sensory_field_points = len(relative_offsets)
+        if current_sensory_field_points == 0:
+            # If no points are in the sensory field (e.g., agent exactly at a corner with small radius),
+            # return zero stimuli for all layers.
+            stimuli_input = [0] * self.dish.num_layers
+            self.sensory_binary_neurons = 0 # No capacity needed
+        else:
+            # The 'sensory_binary_neurons' represents the maximum possible sum of stimuli
+            # for a single layer within the current sensory field.
+            self.sensory_binary_neurons = current_sensory_field_points * self.dish.stimuli_intensity
+            stimuli_input = self.dish.get_stimuli(
+                agent_pos,
+                relative_offsets,
+                mode=self.sensory_mode # This is 'count'
+            )
+        
         agent_input_binary = []
         for val in stimuli_input:
-            val_capped = min(int(round(val)), self.sensory_binary_neurons)
-            input_binary = np.zeros(self.sensory_binary_neurons)
-            if val_capped > 0:
-                input_binary[0:val_capped] = 1
-            agent_input_binary.extend(input_binary)
+            if self.sensory_binary_neurons > 0: # Avoid creating np.zeros(0) if no points
+                val_capped = min(int(round(val)), self.sensory_binary_neurons)
+                input_binary = np.zeros(self.sensory_binary_neurons)
+                if val_capped > 0:
+                    input_binary[0:val_capped] = 1
+                agent_input_binary.extend(input_binary)
+            else:
+                # If no sensory points, then no input, agent_input_binary remains empty or just zeros
+                pass 
         agent_input_binary = np.array(agent_input_binary)
 
-        agent_action_binary = agent['agent'].next_state(agent_input_binary, INSTINCTS=self.INSTINCTS, print_result=False)
+        # Assuming ao.Agent.next_state can handle variable length input or the architect expects it.
+        # If ao.Agent expects a fixed input size, a padding/truncation step would be needed here.
+        agent_action_binary = agent_dict['agent'].next_state(agent_input_binary, INSTINCTS=self.INSTINCTS, print_result=False)
         
         if np.array_equal(agent_action_binary, [1]):
             return self.ACTIONS[0]
@@ -524,7 +622,7 @@ class Assay:
                 action = self._get_agent_action(agent_dict)
                 x, y = agent_dict['pos']
                 if action == 'move_forward':
-                    dy, dx = self.HEADINGS[agent_dict['heading']]
+                    dy, dx = self.HEADINGS[agent_dict['heading']] # Note: self.HEADINGS is (dy, dx)
                     new_x, new_y = x + dx, y + dy
                     if 0 <= new_x < self.dish.size and 0 <= new_y < self.dish.size:
                         agent_dict['pos'] = (new_x, new_y)
