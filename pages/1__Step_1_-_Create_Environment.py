@@ -2,7 +2,8 @@ import streamlit as st
 import numpy as np
 from streamlit_drawable_canvas import st_canvas
 from PIL import Image
-
+import pickle
+import io
 from main_classes import PetriDish
 
 
@@ -31,7 +32,7 @@ with st.sidebar:
     else:
         def_grid_size = 150
     st.session_state.grid_size = st.slider("Grid Size", 50, 500, def_grid_size, 10)
-    st.session_state.stimuli_intensity = st.slider("Max Stimuli Intensity (n)", min_value=1, max_value=50, value=1, step=1)
+    st.session_state.stimuli_intensity = 1 #st.slider("Max Stimuli Intensity (n)", min_value=1, max_value=50, value=1, step=1)
     
     # st.header("Layer Management")
     # if st.button("＋ Add New Layer"):
@@ -62,13 +63,104 @@ with st.sidebar:
         #     file_name="dish_env.pkl",
         #     mime="application/octet-stream"
         # )
-    if st.session_state.dish:
-        if st.button("Save Environment", help="Happy with your petri dish? Click this button to save the env and move on to run your assay.", type="primary", icon="🟢"):
-            st.session_state.saved_dish = PetriDish(size=st.session_state.grid_size, distributions=st.session_state.distributions, stimuli_intensity=st.session_state.stimuli_intensity)
-            st.switch_page("pages/2_Step_2_-_Run Assay.py")
+    # if st.session_state.dish:
+    #     if st.button("Save Environment", help="Happy with your petri dish? Click this button to save the env and move on to run your assay.", type="primary", icon="🟢"):
+    #         st.session_state.saved_dish = PetriDish(size=st.session_state.grid_size, distributions=st.session_state.distributions, stimuli_intensity=st.session_state.stimuli_intensity)
+    #         st.switch_page("pages/2_Step_2_-_Run Assay.py")
     
-    # else:
-    #     st.info("Add at least one layer to enable export.")
+    # # else:
+    # #     st.info("Add at least one layer to enable export.")
+    st.header("Import Environment")
+    uploaded_file = st.file_uploader("Choose an environment file to import (.pkl)", type=["pkl"])
+
+    if uploaded_file is not None:
+        if st.button("Import Environment", help="Happy with your petri dish? Click this button to load the env and move on to run your assay.", type="primary", icon="🟢"):
+            try:
+                st.session_state.saved_dish = pickle.load(uploaded_file)
+                st.session_state.distributions = st.session_state.saved_dish.distributions
+                st.success("Environment imported successfully!")
+            except Exception as e:
+                st.error(f"Failed to import environment: {e}")        
+    st.header("Export Environment")
+    st.write("Save the current setup list to a pickle file.")
+
+    if st.session_state.distributions:
+        st.session_state.saved_dish = PetriDish(
+            size=st.session_state.grid_size, 
+            distributions=st.session_state.distributions, 
+            stimuli_intensity=st.session_state.stimuli_intensity
+        )
+        # # Create a deep copy for serialization to avoid including the large 'custom_mask' array
+        # export_distributions = []
+        # for dist in st.session_state.distributions:
+        #     dist_copy = dist.copy()
+        #     if 'custom_mask' in dist_copy:
+        #         del dist_copy['custom_mask'] # Remove mask before saving
+        #     export_distributions.append(dist_copy)
+#
+#        if st.session_state.dish:
+#             env_bytes = pickle.dumps(export_dish)
+#    
+#             st.download_button(
+#                 label="Download dish_env.pkl",
+#                 data=env_bytes,
+#                 file_name="dish_env.pkl",
+#                 mime="application/octet-stream"
+#             )
+
+            
+            
+#        if st.button("Save Environment and Continue to Assay", help="Happy with your petri dish? Click this button to save the env and move on to run your assay.", type="primary", icon="🟢"):
+#
+#            st.switch_page("pages/2_Step_2_-_Run Assay.py")
+
+        filename = st.text_input("Enter a name for your environment file", value="export_dish.pkl")
+
+#        # Track whether the file is ready to download
+#        if st.button(
+#            "Prepare Environment File",
+#            help="Click to save the env and get your download link.",
+#            type="primary",
+#            icon="🟢"
+#        ):
+        st.session_state.dish = st.session_state.saved_dish
+
+        if st.session_state.dish:
+            buffer = io.BytesIO()
+            pickle.dump(st.session_state.saved_dish, buffer)
+            buffer.seek(0)
+            st.session_state.download_ready = True
+            st.session_state.buffer = buffer
+            st.session_state.filename = filename
+
+                # Download button
+            if st.session_state.get("download_ready"):
+
+                st.download_button(
+                    label="Download Environment",
+                    help="Download your environment setup",
+                    data=st.session_state.buffer,
+                    file_name=st.session_state.filename,
+                    type="primary",
+                    icon="🟢",
+                    mime="application/octet-stream",
+                    key="download_env"
+                )
+            
+
+                # Checkbox to enable continue button
+                enable_continue = st.checkbox("I have downloaded my environment (or don't need to)")
+                
+                if enable_continue:
+                    if st.button("Continue to Assay", type="primary"):
+                        st.session_state.continue_to_assay = True
+        else:
+            st.info("Add at least one layer to enable export.")
+
+        # Navigation
+        if st.session_state.get("continue_to_assay"):
+            st.session_state.continue_to_assay = False
+            st.switch_page("pages/2_Step_2_-_Run Assay.py")
 
 
 # --- Main Layout ---

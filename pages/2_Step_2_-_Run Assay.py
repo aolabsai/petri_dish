@@ -59,24 +59,24 @@ else:
         """)
         
 
-        sim_col1, sim_col2, sim_col3, sim_col4 = st.columns(4)
-        with sim_col1:
-            st.session_state.instincts_checkbox = st.checkbox("Enable instincts", value=True, help='Disabling this will disable new learning')
-            st.write("The agent sums the inputs (per layer) of the immediate points around it (9 points total, including its own position); food-related pain/pleasure instincts can be set up to activate based on a threshold percentage of the input.")
-            if st.session_state.instincts_checkbox:
-                in_col1, in_col2 = st.columns(2)
-                with in_col1:
-                    st.session_state.pain_threshold = st.number_input("Threshold for pain:", min_value=0.0, max_value=1.0, value=1/3)
-                with in_col2:
-                    st.session_state.pleasure_threshold = st.number_input("Threshold for pleasure:", min_value=0.0, max_value=1.0, value=2/3)
+        sim_col3, sim_col4 = st.columns(2)   #sim_col1, sim_col2, sim_col3, sim_col4 = st.columns(4)
+        # with sim_col1:
+        #     st.session_state.instincts_checkbox = st.checkbox("Enable instincts", value=True, help='Disabling this will disable new learning')
+        #     st.write("The agent sums the inputs (per layer) of the immediate points around it (9 points total, including its own position); food-related pain/pleasure instincts can be set up to activate based on a threshold percentage of the input.")
+        #     if st.session_state.instincts_checkbox:
+        #         in_col1, in_col2 = st.columns(2)
+        #         with in_col1:
+        #             st.session_state.pain_threshold = st.number_input("Threshold for pain:", min_value=0.0, max_value=1.0, value=1/3)
+        #         with in_col2:
+        #             st.session_state.pleasure_threshold = st.number_input("Threshold for pleasure:", min_value=0.0, max_value=1.0, value=2/3)
 
-        with sim_col2:
-            save_C_info = st.checkbox("Enable neuron-level pruning for agent-level forgetting", value=False, help="")
-            if save_C_info: st.warning('This is an experimental feature still in development; to use it be sure to run on [this branch](https://github.com/aolabsai/ao_core/tree/research_expansion/neuron_pruning) of ao_core', icon="⚠️")
-            C_impression_initial = st.number_input("Initial learning experience impression strength", min_value=1, max_value=100, value=5, help="The number added to the memory'", disabled=not save_C_info) # strength of impression when first added to neuron from C learning event
-            C_impression_match = st.number_input("Impression increment if lookup match", min_value=1, max_value=C_impression_initial, value=2, help="The number incremented when there is a lookup match", disabled=not save_C_info)  # increment of impression if accessed by neuron during inference
-            C_pruning = st.number_input("Impression decrement for all other rows that did not match", min_value=1, max_value=C_impression_match, value=1, help="The number decremented when no lookup match", disabled=not save_C_info) # decrement of impression in C_info if not accessed by neuron during inference
-            C_pruning_cutoff = st.number_input("Number below which memories are deleted from neurons' lookup tables", min_value=1, max_value=100, value=1, help="Cutoff value below which memories are deleted", disabled=not save_C_info) # value below which impressions are pruned from neuron)
+        # with sim_col2:
+        #     save_C_info = st.checkbox("Enable neuron-level pruning for agent-level forgetting", value=False, help="")
+        #     if save_C_info: st.warning('This is an experimental feature still in development; to use it be sure to run on [this branch](https://github.com/aolabsai/ao_core/tree/research_expansion/neuron_pruning) of ao_core', icon="⚠️")
+        #     C_impression_initial = st.number_input("Initial learning experience impression strength", min_value=1, max_value=100, value=5, help="The number added to the memory'", disabled=not save_C_info) # strength of impression when first added to neuron from C learning event
+        #     C_impression_match = st.number_input("Impression increment if lookup match", min_value=1, max_value=C_impression_initial, value=2, help="The number incremented when there is a lookup match", disabled=not save_C_info)  # increment of impression if accessed by neuron during inference
+        #     C_pruning = st.number_input("Impression decrement for all other rows that did not match", min_value=1, max_value=C_impression_match, value=1, help="The number decremented when no lookup match", disabled=not save_C_info) # decrement of impression in C_info if not accessed by neuron during inference
+        #     C_pruning_cutoff = st.number_input("Number below which memories are deleted from neurons' lookup tables", min_value=1, max_value=100, value=1, help="Cutoff value below which memories are deleted", disabled=not save_C_info) # value below which impressions are pruned from neuron)
 
         with sim_col3:
             saturation_refractory = st.checkbox("Enable saturation and refractory limits to neural responses", value=False, help="")
@@ -86,13 +86,13 @@ else:
 
         with sim_col4:
             pretrain_agents = st.checkbox("Pre-train agents on random data", help="Helpful to increase agent's response variance by pre-populating agent neurons' lookup tables, giving a wider range before lessons from learning kick in and override.")
-            if pretrain_agents: pretrain_agent_steps = st.number_input("Add random states to agents", min_value=0, max_value=100, value=10)
+            if pretrain_agents: pretrain_agent_steps = st.number_input("Add random states to agents", min_value=0, max_value=100000, value=100)
 
 
     if st.button("▶️ Run Simulation"):
         with st.spinner(f"Running simulation for {steps_input} steps..."):
             petri_dish = st.session_state.saved_dish
-            agent_archs_param = "random" if debug_mode_checkbox else updateArch(st.session_state.stimuli_intensity, st.session_state.pain_threshold, st.session_state.pleasure_threshold) # the arch that is imported from the "archs" folder
+            agent_archs_param = "random" if debug_mode_checkbox else updateArch(st.session_state.stimuli_intensity)#, st.session_state.pain_threshold, st.session_state.pleasure_threshold) # the arch that is imported from the "archs" folder
             
             if reuse_agents_from_assay and "assay" in st.session_state:
                 assay_loadagents = st.session_state.assay
@@ -100,20 +100,20 @@ else:
                 assay_loadagents = ""
             assay = Assay(petri_dish=petri_dish, num_agents=num_agents_input, start_logic=start_logic_input, agent_archs=agent_archs_param, steps=steps_input, assay_loadagents=assay_loadagents)
             
-            if save_C_info: assay.set_agent_hyperparameters(
-                C_impression_initial, # strength of impression when first added to neuron from C learning event
-                C_impression_match, # increment of impression if accessed by neuron during inference
-                C_pruning, # decrement of impression in C_info if not accessed by neuron during inference
-                C_pruning_cutoff, # value below which impressions are pruned from neuron)
-                save_C_info, # whether or not to disable this feature
-                saturation_threshold,
-                refractory_period,
-                saturation_refractory
-                )
+            # if save_C_info: assay.set_agent_hyperparameters(
+            #     C_impression_initial, # strength of impression when first added to neuron from C learning event
+            #     C_impression_match, # increment of impression if accessed by neuron during inference
+            #     C_pruning, # decrement of impression in C_info if not accessed by neuron during inference
+            #     C_pruning_cutoff, # value below which impressions are pruned from neuron)
+            #     save_C_info, # whether or not to disable this feature
+            #     saturation_threshold,
+            #     refractory_period,
+            #     saturation_refractory
+            #     )
 
             if pretrain_agents: assay.pretrain_random(pretrain_agent_steps)
 
-            assay.INSTINCTS = st.session_state.instincts_checkbox # to activate training, let's gooooo
+            # assay.INSTINCTS = st.session_state.instincts_checkbox # to activate training, let's gooooo
             assay.run_step(steps=steps_input)
             st.session_state.assay = assay
             st.session_state.assay_saved = assay.export_data()
@@ -206,7 +206,7 @@ else:
                             'stimuli0', 'stimuli1', 'stimuli2',
                             'neuronal0', 'neuronal1', 'neuronal2'}
             
-            learning_event_cols = [col for col in full_data.columns if col in ['Pleasure', 'Pain']]
+            # learning_event_cols = [col for col in full_data.columns if col in ['Pleasure', 'Pain']]
                 
             if not required_cols.issubset(full_data.columns):
                 missing_cols = required_cols - set(full_data.columns)
@@ -309,28 +309,28 @@ else:
         
         st.markdown("---")
         with st.expander("Learning Events and Memory", expanded=True):
-            col3, col4 = st.columns(2)
-            with col3:
-                st.subheader("Control Events")
-                st.text("Total number of learning events over time.")
-                if set(learning_event_cols) == {'Pleasure', 'Pain'}:
-                    if st.checkbox("View combined plot (Pleasure - Pain)"):
-                        combined_data['Combined_Events'] = combined_data['Pleasure'] - combined_data['Pain']
-                        combined_chart = alt.Chart(combined_data).mark_line().encode(
-                            x=alt.X('Time', axis=alt.Axis(title="")), y=alt.Y('Combined_Events', axis=alt.Axis(title="Net Events")),
-                            color=alt.Color('Agent', scale=color_scale, legend=None), tooltip=['Time', 'Agent', 'Combined_Events']
-                        ).interactive()
-                        st.altair_chart(combined_chart, use_container_width=True)
-                        st.text("Displaying the net of Pleasure minus Pain.")
-                    else:
-                        selected_event_types = learning_event_cols
-                        learning_data_long = combined_data.melt(id_vars=['Time', 'Agent'], value_vars=selected_event_types, var_name='Event Type', value_name='Count')
-                        learning_chart = alt.Chart(learning_data_long).mark_line(interpolate='step-after').encode(
-                            x=alt.X('Time', axis=alt.Axis(title="")), y=alt.Y('Count', axis=alt.Axis(title="Total Events")),
-                            color=alt.Color('Agent', scale=color_scale, legend=None), strokeDash=alt.StrokeDash('Event Type', legend=alt.Legend(title="Event Type")),
-                            tooltip=['Time', 'Agent', 'Event Type', 'Count']
-                        ).interactive()
-                        st.altair_chart(learning_chart, use_container_width=True)
+            col4 = st.columns(1)[0] #col3, col4 = st.columns(2)
+        #     with col3:
+        #         st.subheader("Control Events")
+        #         st.text("Total number of learning events over time.")
+        #         if set(learning_event_cols) == {'Pleasure', 'Pain'}:
+        #             if st.checkbox("View combined plot (Pleasure - Pain)"):
+        #                 combined_data['Combined_Events'] = combined_data['Pleasure'] - combined_data['Pain']
+        #                 combined_chart = alt.Chart(combined_data).mark_line().encode(
+        #                     x=alt.X('Time', axis=alt.Axis(title="")), y=alt.Y('Combined_Events', axis=alt.Axis(title="Net Events")),
+        #                     color=alt.Color('Agent', scale=color_scale, legend=None), tooltip=['Time', 'Agent', 'Combined_Events']
+        #                 ).interactive()
+        #                 st.altair_chart(combined_chart, use_container_width=True)
+        #                 st.text("Displaying the net of Pleasure minus Pain.")
+        #             else:
+        #                 selected_event_types = learning_event_cols
+        #                 learning_data_long = combined_data.melt(id_vars=['Time', 'Agent'], value_vars=selected_event_types, var_name='Event Type', value_name='Count')
+        #                 learning_chart = alt.Chart(learning_data_long).mark_line(interpolate='step-after').encode(
+        #                     x=alt.X('Time', axis=alt.Axis(title="")), y=alt.Y('Count', axis=alt.Axis(title="Total Events")),
+        #                     color=alt.Color('Agent', scale=color_scale, legend=None), strokeDash=alt.StrokeDash('Event Type', legend=alt.Legend(title="Event Type")),
+        #                     tooltip=['Time', 'Agent', 'Event Type', 'Count']
+        #                 ).interactive()
+        #                 st.altair_chart(learning_chart, use_container_width=True)
 
             with col4:
                 st.write("")
