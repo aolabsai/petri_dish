@@ -9,6 +9,7 @@ pandas
 matplotlib
 colorsys
 IPython
+dill
 
 # env app
 numpy
