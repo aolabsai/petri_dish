@@ -22,6 +22,40 @@ import ao_core as ao
 
 PLEASURE_LAYER_INDEX = 0
 PAIN_LAYER_INDEX = 2
+
+# class ExperienceBuffer:
+#     def __init__(self, max_size=5000):
+#         self.buffer = []
+#         self.max_size = max_size
+#         self.index = 0
+    
+#     def store(self, state, q_value):
+#         experience = {
+#             'state': state.copy(),
+#             'q_value': q_value,
+#             # 'action': action,
+#             # 'reward': reward,
+#             # 'next_state': next_state.copy(),
+#             # 'done': done
+#         }
+        
+#         if len(self.buffer) < self.max_size:
+#             self.buffer.append(experience)
+#         else:
+#             self.buffer[self.index] = experience
+#         self.index = (self.index + 1) % self.max_size
+    
+#     def sample(self, batch_size):
+#         if len(self.buffer) < batch_size:
+#             return self.buffer.copy()
+#         return random.sample(self.buffer, batch_size)
+    
+#     def size(self):
+#         return len(self.buffer)
+
+# Then your existing PetriDish class...
+# Then your existing Assay class with the modified __init__...
+
 class PetriDish:
     def __init__(self, size=100, num_layers=3, distributions=None, stimuli_intensity=9):
         """
@@ -189,96 +223,6 @@ class PetriDish:
         return np.clip(final_p_grid, 0, 1)
 
 
-    # def get_stimuli(self, coordinates, shape='square', radius=RADIUS, mode='count', weighting=None, sigma=None):
-    
-        """
-        Get stimuli values at or around a given coordinate.
-
-        Parameters:
-        - coordinates: tuple (int, int), the (x, y) center coordinate.
-        - shape: str (default 'square'), the shape of the area.
-                 Options: 'circle', 'square'.
-        - radius: int (default 0), the radius of the area to consider. If 0,
-                  only the center coordinate is checked.
-        - mode: str (default 'count'), the operation to perform.
-                Options: 'concentration' (returns a float from 0.0 to 1.0),
-                         'count' (returns an integer count of active stimuli).
-        - weighting: str (default 'uniform'), the weighting method for stimuli
-                     within the radius. Only used when mode is 'concentration'.
-                     Options: 'uniform', 'linear', 'gaussian'.
-        - sigma: float, optional. The standard deviation for 'gaussian'
-                 weighting. Defaults to radius / 2.0.
-
-        Returns:
-        - list of int or list of float: Based on the mode, returns a list of
-          stimuli values, counts, or concentrations for each layer.
-        
-        Raises:
-        - IndexError: if the coordinates are outside the grid boundaries.
-        - ValueError: if shape, weighting, or mode parameters are invalid.
-        """
-        # x, y = coordinates
-        
-        # if not (0 <= x < self.size and 0 <= y < self.size):
-        #     raise IndexError(f"Coordinates ({x}, {y}) are out of bounds for a grid of size {self.size}x{self.size}.")
-            
-        # if radius == 0:
-        #     return [int(layer[y, x]) for layer in self.layers]
-
-        # jj, ii = np.indices((self.size, self.size))
-
-        # if shape == 'circle':
-        #     distances = np.sqrt((ii - x)**2 + (jj - y)**2)
-        # elif shape == 'square':
-        #     distances = np.maximum(np.abs(ii - x), np.abs(jj - y))
-        # else:
-        #     raise ValueError("Shape must be 'circle' or 'square'.")
-            
-        # mask = distances <= radius
-
-
-        # if not np.any(mask):
-        #     return [0.0 if mode == 'concentration' else 0] * self.num_layers
-
-        # if mode == 'count':
-        #     counts = []
-        #     radius_layers = []
-        #     for layer in self.layers:
-        #         count = np.sum(layer[mask])
-        #         radius_layers.append(layer[mask])
-        #         counts.append(int(count))
-        #     return counts, radius_layers
-
-        # elif mode == 'concentration':
-        #     if weighting == 'uniform':
-        #         weights = mask.astype(float)
-        #     elif weighting == 'linear':
-        #         weights = np.maximum(0, 1 - distances / radius)
-        #         weights[~mask] = 0
-        #     elif weighting == 'gaussian':
-        #         if sigma is None:
-        #             sigma = radius / 2.0
-        #         if sigma <= 0:
-        #             raise ValueError("Sigma for Gaussian weighting must be positive.")
-        #         weights = np.exp(-distances**2 / (2 * sigma**2))
-        #         weights[~mask] = 0
-        #     else:
-        #         raise ValueError("Weighting must be 'uniform', 'linear', or 'gaussian'.")
-
-        #     total_weight = np.sum(weights)
-        #     if total_weight == 0:
-        #         return [0.0] * self.num_layers
-                
-        #     concentrations = []
-        #     for layer in self.layers:
-        #         weighted_sum = np.sum(layer * weights)
-        #         concentration = weighted_sum / total_weight
-        #         concentrations.append(concentration)
-                
-        #     return concentrations
-        
-        # else:
-        #     raise ValueError("Mode must be 'concentration' or 'count'.")
     def get_stimuli(self, coordinates, shape='square', radius=RADIUS, mode='count', weighting=None, sigma=None):
         """
         Get stimuli values at or around a given coordinate with consistent output size.
@@ -308,6 +252,7 @@ class PetriDish:
         - IndexError: if the coordinates are outside the grid boundaries.
         - ValueError: if shape, weighting, or mode parameters are invalid.
         """
+        # print(coordinates)
         x, y = coordinates
         
         if not (0 <= x < self.size and 0 <= y < self.size):
@@ -555,7 +500,33 @@ class PetriDish:
         return fig
     
 
-
+class NStepBuffer:
+    def __init__(self, n=10):
+        self.n = n
+        self.buffer = []  # Stores (state, action, reward) tuples
+        self.alpha = 0.2   #let's call this learning_rate
+        self.gamma = 0.95 #discount_factor for long_term planning
+        self.epsilon = 0.1  #exploration_rate
+    
+    def add(self, state, reward):
+        self.buffer.append((state, reward))
+        
+        # If buffer is full, return the n-step experience for learning
+        if len(self.buffer) == self.n:
+            return self._create_n_step_experience()
+        return None
+    
+    def _create_n_step_experience(self):
+        # Calculate n-step return
+        n_step_return = 0
+        for i, (_, reward) in enumerate(self.buffer):
+            n_step_return += (self.gamma ** i) * reward
+        
+        # Return experience: (initial_state, initial_action, n_step_return)
+        initial_state, _ = self.buffer[0]
+        self.buffer.pop(0)  # Remove oldest experience
+        
+        return (initial_state, n_step_return)
 
 
 class Assay:
@@ -569,7 +540,7 @@ class Assay:
         
         self.debug_mode = (agent_archs == "random")
         self.random = self.debug_mode
-        
+                
         if type(assay_loadagents) is Assay:
             print("-----AGENTS LOADED FROM SUPPLIED ASSAY-----")
             self.num_agents = assay_loadagents.num_agents
@@ -578,6 +549,11 @@ class Assay:
         else:
             self.num_agents = num_agents
             self.agent_archs = agent_archs
+        self.n = 10
+        self.n_step_buffers = [NStepBuffer(n=self.n) for _ in range(self.num_agents)]
+        # self.experience_buffers = [ExperienceBuffer(max_size=10000) for _ in range(self.num_agents)]
+        # self.batch_size = 32
+        # self.replay_frequency = 1
 
         if self.debug_mode:
             self.num_learning_types = 0
@@ -596,7 +572,7 @@ class Assay:
         self.sensory_shape = "square"
         self.alpha = 0.2   #let's call this learning_rate
         self.gamma = 0.95 #discount_factor for long_term planning
-        self.epsilon = 0.2  #exploration_rate
+        self.epsilon = 0.1  #exploration_rate
         self.sensory_mode = "count"
         self.sensory_radius = RADIUS  
         self.sensory_area_size = (2 * RADIUS + 1) ** 2  # (2*2 + 1)^2 = 5^2 = 25 cells
@@ -654,30 +630,8 @@ class Assay:
     def _convert_stimuli_to_binary(self, radius_layers):
 
         agent_input_binary = np.array([[layer[i] for layer in radius_layers] for i in range(len(radius_layers[0]))], dtype=np.uint8).reshape(-1)
-        # print(agent_input_binary.shape)
-        # agent_input_binary = []
-        # for val in stimuli_input:
-        #     val_capped = min(int(round(val)), self.sensory_binary_neurons)
-        #     input_binary = np.zeros(self.sensory_binary_neurons)
-        #     if val_capped > 0:
-        #         input_binary[0:val_capped] = 1
-        #     agent_input_binary.extend(input_binary)
-        # agent_input_binary = np.array(agent_input_binary)
         return agent_input_binary
 
-    # def _get_agent_action(self, agent):
-    #     if self.random:
-    #         return np.random.choice(self.ACTIONS)
-        
-    #     stimuli_input = self.dish.get_stimuli(agent['pos'], shape=self.sensory_shape, radius=self.sensory_radius,  mode=self.sensory_mode)
-    #     agent_input_binary = self._convert_stimuli_to_binary(agent_input_binary)
-
-    #     agent_action_binary = agent['agent'].next_state(agent_input_binary, INSTINCTS=self.INSTINCTS, print_result=False)
-        
-    #     if np.array_equal(agent_action_binary, [1]):
-    #         return self.ACTIONS[0]
-    #     else:
-    #         return np.random.choice(self.ACTIONS[1:])
             
     def set_agent_hyperparameters(self, C_impression_initial=10, C_impression_match=1, C_pruning=1, C_pruning_cutoff=5, save_C_info=True,
                                   saturation_threshold=10, refractory_period=5, saturation_refractory=True):
@@ -703,6 +657,7 @@ class Assay:
         agent = agent_dict['agent']
         if exploration_rate is None:
             exploration_rate = self.epsilon
+        is_exploration = random.random() < exploration_rate
 
         if random.random() < exploration_rate:  # e.g., 10% of the time
             # For random actions, we still need to create the binary input
@@ -720,13 +675,13 @@ class Assay:
             random_action = random.choice(self.ACTIONS)
             
             # Append random action to binary input
-            agent_input_binary = np.append(agent_input_binary, self.ACTIONS_BIN[random_action])
+            agent_input_binary_action = np.append(agent_input_binary, self.ACTIONS_BIN[random_action])
             # print(agent_input_binary.shape)
-            q_value = sum(agent_dict['agent'].next_state(agent_input_binary, unsequenced=False))
+            q_value = sum(agent_dict['agent'].next_state(agent_input_binary_action, unsequenced=False))
             # action_q_values_prediction_dict[action] = q_value
             max_q_action = (random_action, q_value)  #max(action_q_values_prediction_dict.items(), key=lambda item: item[1])
             
-            return agent_input_binary, max_q_action  # Return both
+            return agent_input_binary, max_q_action, is_exploration  # Return both
             
         # Get sensory input at this position
         stimuli_input, radius_layers = self.dish.get_stimuli(
@@ -738,30 +693,32 @@ class Assay:
         action_q_values_prediction_dict = {}
         
         heading = agent_dict['heading']
+        agent_input_binary = self._convert_stimuli_to_binary(radius_layers)
+        agent_input_binary = np.append(agent_input_binary, self.HEADINGS_BIN[heading])
         for action in self.ACTIONS:
             agent_action = self.ACTIONS_BIN[action]
             # Convert to binary input for WNN
-            agent_input_binary = self._convert_stimuli_to_binary(radius_layers)
-            agent_input_binary = np.append(agent_input_binary, self.HEADINGS_BIN[heading])
-            agent_input_binary = np.append(agent_input_binary, agent_action)
+
+            agent_input_binary_action = np.append(agent_input_binary, agent_action)
             # print(agent_input_binary.shape)
-            q_value = sum(agent_dict['agent'].next_state(agent_input_binary, unsequenced=False))
+            q_value = sum(agent_dict['agent'].next_state(agent_input_binary_action, unsequenced=False))
             action_q_values_prediction_dict[action] = q_value
-        max_q_action = max(action_q_values_prediction_dict.items(), key=lambda item: item[1])
+        # Ensure we have valid actions
+        if not action_q_values_prediction_dict:
+            print("No valid actions found, defaulting to move_forward")
+            max_q_action = ("move_forward", 0.0)
+        else:
+            # Find the action with maximum Q-value
+            best_action = max(action_q_values_prediction_dict.keys(), 
+                            key=lambda k: action_q_values_prediction_dict[k])
+            best_q_value = action_q_values_prediction_dict[best_action]
+            max_q_action = (best_action, best_q_value)
+    
         # max_q_action = max(action_q_values_prediction_dict, key=action_q_values_prediction_dict.get)
-        return agent_input_binary, max_q_action
+        
+        return agent_input_binary, max_q_action, is_exploration
 
 
-    # def _convert_stimuli_to_binary(self, stimuli_input):
-    #     agent_input_binary = []
-    #     for val in stimuli_input:
-    #         val_capped = min(int(round(val)), self.sensory_binary_neurons)
-    #         input_binary = np.zeros(self.sensory_binary_neurons)
-    #         if val_capped > 0:
-    #             input_binary[0:val_capped] = 1
-    #         agent_input_binary.extend(input_binary)
-    #     agent_input_binary = np.array(agent_input_binary)
-    #     return agent_input_binary
 
     def calculate_reward(self,stimuli_values):
         """
@@ -825,13 +782,14 @@ class Assay:
         if self.debug_mode:
             print("Cannot pretrain agents in random/debug mode.")
             return
-            
+
         for i, agent_dict in enumerate(self.agents):
             agent_dict['agent'].reset_state()
             agent = agent_dict['agent']
             
             original_pos = agent_dict['pos']
             original_heading = agent_dict['heading']
+            # steps_scaled = steps // self.n
             
             # Systematic exploration strategy
             for step in range(steps):
@@ -847,11 +805,67 @@ class Assay:
                         np.random.randint(0, self.dish.size),
                         np.random.randint(0, self.dish.size)
                     )
+                for n in range(self.n):
                 
-                # Try different headings
-                agent_dict['heading'] = step % 4
-            
+                    # Try different headings
+                    agent_dict['heading'] = step % 4
+                
+                    old_stimuli,radius_layers = self.dish.get_stimuli(
+                        agent_dict['pos'], 
+                        shape=self.sensory_shape, 
+                        radius=self.sensory_radius, 
+                        mode=self.sensory_mode
+                    )
+                    old_reward = self.calculate_reward(old_stimuli)
+
+                    agent_input_binary, action_value, is_exploration = self.get_agent_action(agent_dict)
+                    agent_action, q_value = action_value
+                    agent_input_binary = np.append(agent_input_binary, self.ACTIONS_BIN[agent_action])
+
+                    self.update_agent_position_and_heading(agent_dict,agent_action)
+                    next_agent_input_binary, next_q_action_value,_ = self.get_agent_action(agent_dict)
+                    next_agent_action, next_q_value = next_q_action_value
+                    new_stimuli,radius_layers = self.dish.get_stimuli(
+                        agent_dict['pos'], 
+                        shape=self.sensory_shape, 
+                        radius=self.sensory_radius, 
+                        mode=self.sensory_mode
+                    )
+                    new_reward = self.calculate_reward(new_stimuli)
+                    exploration_bonus = 0.1 if is_exploration else 0.0
+                    # Get sensory input at this position
+                    reward_received = (((new_reward - old_reward)*2) + new_reward ) * (1+ exploration_bonus)
+                    n_step_experience = self.n_step_buffers[i].add(agent_input_binary, reward_received)
+                    if n_step_experience is not None:
+                        old_state, n_step_return = n_step_experience
+                        old_q = q_value  #sum(agent_dict['agent'].next_state(old_input_binary, unsequenced=False))
+                        new_q = old_q + self.alpha * (n_step_return - old_q)
+                        self.update_assay_agents(agent_dict, agent_input_binary, new_q)
+                    
+            # Restore original position and heading
+            agent_dict['pos'] = original_pos
+            agent_dict['heading'] = original_heading
+        self.n_step_buffers = [NStepBuffer(n=self.n) for _ in range(self.num_agents)]
+
+
+
+    def run_step(self, steps):
+        # steps += self.n
+        for s in range(1, steps):
+            # if s >= self.history.shape[0]:
+            #     print("Warning: History limit reached, assay memory full.")
+            #     break
+            self.step = s
+            # is_exploration = False
+
+            for i, agent_dict in enumerate(self.agents):
                 # Get sensory input at this position
+                # stimuli_input, radius_layers = self.dish.get_stimuli(
+                #     agent_dict['pos'], 
+                #     shape=self.sensory_shape, 
+                #     radius=self.sensory_radius, 
+                #     mode=self.sensory_mode
+                # )
                 old_stimuli,radius_layers = self.dish.get_stimuli(
                     agent_dict['pos'], 
                     shape=self.sensory_shape, 
@@ -859,9 +873,13 @@ class Assay:
                     mode=self.sensory_mode
                 )
                 old_reward = self.calculate_reward(old_stimuli)
-                agent_input_binary, action_value = self.get_agent_action(agent_dict, exploration_rate =0.5)
+
+                agent_input_binary, action_value, is_exploration = self.get_agent_action(agent_dict)
                 agent_action, q_value = action_value
+                agent_input_binary = np.append(agent_input_binary, self.ACTIONS_BIN[agent_action])
                 self.update_agent_position_and_heading(agent_dict,agent_action)
+                next_agent_input_binary, next_q_action_value,_ = self.get_agent_action(agent_dict)
+                next_agent_action, next_q_value = next_q_action_value
                 new_stimuli,radius_layers = self.dish.get_stimuli(
                     agent_dict['pos'], 
                     shape=self.sensory_shape, 
@@ -869,109 +887,21 @@ class Assay:
                     mode=self.sensory_mode
                 )
                 new_reward = self.calculate_reward(new_stimuli)
-
-
-                next_agent_input_binary, next_q_action_value = self.get_agent_action(agent_dict)
-                next_agent_action, next_q_value = next_q_action_value
+                exploration_bonus = 0.1 if is_exploration else 0.0
                 # Get sensory input at this position
-
-                # Combined reward strategies:
-                # Option 1: Transition reward (difference)
-                reward_received = new_reward - old_reward
-                new_q = q_value + self.alpha * (reward_received + self.gamma * (next_q_value - q_value))
-                self.update_assay_agents(agent_dict, agent_input_binary, new_q)
-                
-            # Restore original position and heading
-            agent_dict['pos'] = original_pos
-            agent_dict['heading'] = original_heading
-
-    # def pretrain_random(self, steps):
-    #     if self.debug_mode:
-    #         print("Cannot pretrain agents in random/debug mode.")
-    #         return
-    #     for i, agent_dict in enumerate(self.agents):
-    #         for s in range(steps):
-    #             agent_dict['agent'].reset_state(training=True)
-    #             agent_dict['agent'].reset_state()
-
-    # def run_step(self, steps):
-    #     for s in range(1, steps):
-    #         if s >= self.history.shape[0]:
-    #             print("Warning: History limit reached, assay memory full.")
-    #             break
-    #         self.step = s
-
-    #         for i, agent_dict in enumerate(self.agents):
-    #             action = self._get_agent_action(agent_dict)
-    #             x, y = agent_dict['pos']
-    #             if action == 'move_forward':
-    #                 dy, dx = self.HEADINGS[agent_dict['heading']]
-    #                 new_x, new_y = x + (dx*RADIUS), y + (dy*RADIUS)
-
-    #             elif action == 'move_backward':
-    #                 agent_dict['heading'] = (agent_dict['heading'])*-1
-    #                 dy, dx = self.HEADINGS[heading] 
-    #                 new_x, new_y = x - (dx*RADIUS), y - (dy*RADIUS)
-    #             elif action == 'move_right':
-    #                 agent_dict['heading'] = (agent_dict['heading'] + 1) % 4
-    #                 dy, dx = self.HEADINGS[right_heading]
-    #                 new_x, new_y = x + (dx*RADIUS), y + (dy*RADIUS)
-    #             elif action == 'move_left':
-    #                 agent_dict['heading'] = (agent_dict['heading'] - 1 + 4) % 4
-    #                 dy, dx = self.HEADINGS[right_heading]
-    #                 new_x, new_y = x + (dx*RADIUS), y + (dy*RADIUS)
-    #             if 0 <= new_x < self.dish.size and 0 <= new_y < self.dish.size:
-    #                 agent_dict['pos'] = (new_x, new_y)
-
-    #             self.history[self.step, i, 0] = agent_dict['pos'][0]
-    #             self.history[self.step, i, 1] = agent_dict['pos'][1]
-                
-    #             if self.debug_mode:
-    #                 self.meta_history[self.step, i, :self.metainfo] = np.random.rand(self.metainfo) * 10
-    #                 # if self.num_learning_types > 0:
-    #                 #     self.meta_history[self.step, i, self.metainfo:] = np.random.randint(0, s, self.num_learning_types)
-    #             else:
-    #                 agent_instance = agent_dict['agent']
-                    
-    #                 self.meta_history[self.step, i, 0] = sum(agent_instance.astate[0, agent_instance.arch.I[0]])
-    #                 self.meta_history[self.step, i, 1] = sum(agent_instance.astate[0, agent_instance.arch.I[1]])
-    #                 self.meta_history[self.step, i, 2] = sum(agent_instance.astate[0, agent_instance.arch.I[2]])
-    #                 self.meta_history[self.step, i, 3] = sum(agent_instance.astate[0, agent_instance.arch.Q[0]])
-    #                 self.meta_history[self.step, i, 4] = sum(agent_instance.astate[0, agent_instance.arch.Q[1]])
-    #                 self.meta_history[self.step, i, 5] = sum(agent_instance.astate[0, agent_instance.arch.Q[2]])
-    #                 try: self.meta_history[self.step, i, 6] = agent_instance.neurons[agent_instance.arch.Z__flat[0]].outputs.size
-    #                 except (AttributeError, IndexError): self.meta_history[self.step, i, 6] = self.meta_history[self.step-1, i, 6] if self.step > 0 else 0
-    #                 # for c in range(self.num_learning_types):
-    #                 #     self.meta_history[self.step, i, 7+c] = getattr(agent_instance, self.agent_archs.C_types_names[c])
-
-
-    def run_step(self, steps):
-        for s in range(1, steps):
-            # if s >= self.history.shape[0]:
-            #     print("Warning: History limit reached, assay memory full.")
-            #     break
-            self.step = s
-
-            for i, agent_dict in enumerate(self.agents):
-                # Get sensory input at this position
-                stimuli_input, radius_layers = self.dish.get_stimuli(
-                    agent_dict['pos'], 
-                    shape=self.sensory_shape, 
-                    radius=self.sensory_radius, 
-                    mode=self.sensory_mode
-                )
-
-                agent_input_binary, action_value = self.get_agent_action(agent_dict)
-                agent_action, q_value = action_value
-                self.update_agent_position_and_heading(agent_dict,agent_action)
-                next_agent_input_binary, next_q_action_value = self.get_agent_action(agent_dict)
-                next_agent_action, next_q_value = next_q_action_value
-
-                # Get sensory input at this position
-
-                reward_received = self.calculate_reward(stimuli_input)
-                new_q = q_value + self.alpha * (reward_received + self.gamma * next_q_value - q_value)
-                self.update_assay_agents(agent_dict, agent_input_binary, new_q)
+                reward_received = (((new_reward - old_reward)*2) + new_reward ) * (1+ exploration_bonus)
+                n_step_experience = self.n_step_buffers[i].add(agent_input_binary, reward_received)
+                if n_step_experience is not None:
+                    old_state, n_step_return = n_step_experience
+                    old_q = q_value  #sum(agent_dict['agent'].next_state(old_input_binary, unsequenced=False))
+                    new_q = old_q + self.alpha * (n_step_return - old_q)
+                    self.update_assay_agents(agent_dict, agent_input_binary, new_q)
+                # new_q = q_value + self.alpha * (reward_received + self.gamma * next_q_value - q_value)
+                # self.update_assay_agents(agent_dict, agent_input_binary, new_q)
+                # self.experience_buffers[i].store(
+                #     state=agent_input_binary,
+                #     q_value=new_q,
+                # )
 
                 self.history[self.step, i, 0] = agent_dict['pos'][0]
                 self.history[self.step, i, 1] = agent_dict['pos'][1]
@@ -993,9 +923,25 @@ class Assay:
                     except (AttributeError, IndexError): self.meta_history[self.step, i, 6] = self.meta_history[self.step-1, i, 6] if self.step > 0 else 0
                     # for c in range(self.num_learning_types):
                     #     self.meta_history[self.step, i, 7+c] = getattr(agent_instance, self.agent_archs.C_types_names[c])
+                # if s % self.replay_frequency == 0 and self.experience_buffers[i].size() > self.batch_size:
+                #     self.replay_learn_from_memory(agent_dict, i)
             if s >= self.history.shape[0]:
                 print("Warning: History limit reached, assay memory full.")
                 break
+
+    # def replay_learn_from_memory(self, agent_dict, i):
+        
+    #     train_sample = self.experience_buffers[i].sample(self.batch_size)
+
+    #     train_sample_input = np.array([train_sample[i]['state'] for i in range(self.batch_size)])
+    #     train_sample_label = np.array([train_sample[i]['q_value'] for i in range(self.batch_size)])
+
+    #     clipped_q = [int(round(np.clip(new_q, 0, OUTPUT_SIZE))) for new_q in train_sample_label]
+    #     new_q_label = np.zeros(OUTPUT_SIZE, dtype=np.int8)
+    #     new_q_idx = np.random.randint(0,OUTPUT_SIZE, size = (clipped_q))
+    #     new_q_label[new_q_idx] = 1
+    #     agent_dict['agent'].next_state_batch(agent_input.reshape(1,-1), new_q_label.reshape(1,-1))
+
 
     def visualize(self, agents_to_show=None, interval=200, show_paths=True, mode='window'):
         # Old function, won't work with the new streamlit dashboard 
