@@ -14,6 +14,8 @@ from matplotlib.animation import FuncAnimation
 from IPython.display import HTML, display
 from archs.arch0 import updateArch, RADIUS,OUTPUT_SIZE
 import random
+from scipy.stats import kendalltau
+
 
 import ao_core as ao
 # RADIUS = 2
@@ -551,6 +553,7 @@ class Assay:
             self.agent_archs = agent_archs
         self.n = 10
         self.n_step_buffers = [NStepBuffer(n=self.n) for _ in range(self.num_agents)]
+        self.agent_performance = np.zeros((self.num_agents), dtype=np.float32)
         # self.experience_buffers = [ExperienceBuffer(max_size=10000) for _ in range(self.num_agents)]
         # self.batch_size = 32
         # self.replay_frequency = 1
@@ -561,10 +564,16 @@ class Assay:
         # else:
         #     self.num_learning_types = len(self.agent_archs.arch_c)
 
+        steps += self.n 
         self.history = np.zeros((steps, self.num_agents, 2), dtype=int)
         self.meta_history = np.zeros((steps, self.num_agents, self.metainfo), dtype=object)
+        self.agent_performance = np.zeros((self.num_agents), dtype=np.float32)
+        self.agent_performance_history = np.zeros((steps, self.num_agents), dtype=np.float32)
+        
+        self.exploitation_step_counts = np.zeros(self.num_agents, dtype=int)
+
         self.save_agent_meta = save_agent_meta
-         
+        
         self._initialize_agents(start_logic, start_positions, assay_loadagents)
         self.step = 0
 
@@ -577,8 +586,15 @@ class Assay:
         self.sensory_radius = RADIUS  
         self.sensory_area_size = (2 * RADIUS + 1) ** 2  # (2*2 + 1)^2 = 5^2 = 25 cells
         
+        
         # Each cell has 3 layers, each layer gets binary encoded
         self.sensory_binary_neurons = self.sensory_area_size * self.dish.stimuli_intensity
+
+        self.max_reward = self.sensory_binary_neurons * 5
+        self.max_reward_received = (2* self.max_reward)*(1+0.1)
+        self.max_output = OUTPUT_SIZE
+        self.min_output = 0
+        self.max_q = self.max_output + self.alpha * (self.max_reward_received + self.gamma * self.max_output - self.min_output )
 
         self.ACTIONS = ['move_forward', 'move_right', 'move_left', 'move_backward']
         self.ACTIONS_BIN = {"move_forward": [0, 0], "move_right": [0, 1], "move_left": [1, 0], "move_backward": [1, 1]}
@@ -650,6 +666,9 @@ class Assay:
             a._saturation_refractory = saturation_refractory
             a.saturation_threshold = saturation_threshold
             a.refractory_period = refractory_period
+            for s in range(100):
+                agent_dict['agent'].reset_state(training=True)
+                agent_dict['agent'].reset_state()
 
 
 
@@ -657,9 +676,11 @@ class Assay:
         agent = agent_dict['agent']
         if exploration_rate is None:
             exploration_rate = self.epsilon
+        self.epsilon = max(0.01, self.epsilon * 0.995)
         is_exploration = random.random() < exploration_rate
+        action_q_values_prediction_dict = {}
 
-        if random.random() < exploration_rate:  # e.g., 10% of the time
+        if is_exploration:  # e.g., 10% of the time
             # For random actions, we still need to create the binary input
             stimuli_input,radius_layers = self.dish.get_stimuli(
                 agent_dict['pos'], 
@@ -681,7 +702,7 @@ class Assay:
             # action_q_values_prediction_dict[action] = q_value
             max_q_action = (random_action, q_value)  #max(action_q_values_prediction_dict.items(), key=lambda item: item[1])
             
-            return agent_input_binary, max_q_action, is_exploration  # Return both
+            return agent_input_binary, max_q_action, is_exploration, action_q_values_prediction_dict   # Return both
             
         # Get sensory input at this position
         stimuli_input, radius_layers = self.dish.get_stimuli(
@@ -690,7 +711,7 @@ class Assay:
             radius=self.sensory_radius, 
             mode=self.sensory_mode
         )
-        action_q_values_prediction_dict = {}
+        
         
         heading = agent_dict['heading']
         agent_input_binary = self._convert_stimuli_to_binary(radius_layers)
@@ -716,11 +737,18 @@ class Assay:
     
         # max_q_action = max(action_q_values_prediction_dict, key=action_q_values_prediction_dict.get)
         
-        return agent_input_binary, max_q_action, is_exploration
+        return agent_input_binary, max_q_action, is_exploration,action_q_values_prediction_dict
 
 
 
-    def calculate_reward(self,stimuli_values):
+    def calculate_reward(self,agent_dict_pos):
+
+        stimuli_values,radius_layers = self.dish.get_stimuli(
+            agent_dict_pos, 
+            shape=self.sensory_shape, 
+            radius=self.sensory_radius, 
+            mode=self.sensory_mode
+        )
         """
         Calculate reward based on biological interpretation of layers:
         Layer 0: Food (positive resource)
@@ -733,7 +761,7 @@ class Assay:
         
         # Base reward components
         food_reward = food_level * 5.0  # Food is good
-        toxin_penalty = toxin_level * -1.5  # Toxins are bad
+        toxin_penalty = toxin_level * -4.0  #1.5  # Toxins are bad
         # movement_cost = -0.1  # Small cost for moving (encourages efficiency)
         
         # Interaction effects
@@ -746,31 +774,62 @@ class Assay:
         
         return total_reward
             
-    def update_agent_position_and_heading(self, agent_dict, action):
+    # def update_agent_position_and_heading(self, agent_dict, action):
+    #     possible_position_dict = {}
         
-        x, y = agent_dict['pos']
-        if action == 'move_forward':
-            dy, dx = self.HEADINGS[agent_dict['heading']]
-            new_x, new_y = x + (dx*RADIUS), y + (dy*RADIUS)
+    #     x, y = agent_dict['pos']
+    #     if action == 'move_forward':
+    #         dy, dx = self.HEADINGS[agent_dict['heading']]
+    #         new_x, new_y = x + (dx*RADIUS), y + (dy*RADIUS)
+    #     possible_position_dict[action] = (new_x,new_y)
 
-        elif action == 'move_backward':
-            agent_dict['heading'] = (agent_dict['heading'] + 2) % 4
-            dy, dx = self.HEADINGS[agent_dict['heading']] 
-            new_x, new_y = x + (dx*RADIUS), y + (dy*RADIUS)
-        elif action == 'move_right':
-            agent_dict['heading'] = (agent_dict['heading'] + 1) % 4
-            dy, dx = self.HEADINGS[agent_dict['heading']]
-            new_x, new_y = x + (dx*RADIUS), y + (dy*RADIUS)
-        elif action == 'move_left':
-            agent_dict['heading'] = (agent_dict['heading'] - 1 + 4) % 4
-            dy, dx = self.HEADINGS[agent_dict['heading']]
-            new_x, new_y = x + (dx*RADIUS), y + (dy*RADIUS)
-        if 0 <= new_x < self.dish.size and 0 <= new_y < self.dish.size:
-            agent_dict['pos'] = (new_x, new_y)
-        # return agent_dict
+    #     elif action == 'move_backward':
+    #         agent_dict['heading'] = (agent_dict['heading'] + 2) % 4
+    #         dy, dx = self.HEADINGS[agent_dict['heading']] 
+    #         new_x, new_y = x + (dx*RADIUS), y + (dy*RADIUS)
+    #     elif action == 'move_right':
+    #         agent_dict['heading'] = (agent_dict['heading'] + 1) % 4
+    #         dy, dx = self.HEADINGS[agent_dict['heading']]
+    #         new_x, new_y = x + (dx*RADIUS), y + (dy*RADIUS)
+    #     elif action == 'move_left':
+    #         agent_dict['heading'] = (agent_dict['heading'] - 1 + 4) % 4
+    #         dy, dx = self.HEADINGS[agent_dict['heading']]
+    #         new_x, new_y = x + (dx*RADIUS), y + (dy*RADIUS)
+    #     if 0 <= new_x < self.dish.size and 0 <= new_y < self.dish.size:
+    #         agent_dict['pos'] = (new_x, new_y)
+    #     # return agent_dict
+    def get_possible_positions(self, agent_dict):
+        possible_position_dict = {}
+        x, y = agent_dict['pos']
+        original_heading = agent_dict['heading']
+
+        for action in ['move_forward', 'move_backward', 'move_right', 'move_left']:
+            heading = original_heading  # Reset heading for each simulation
+
+            if action == 'move_forward':
+                dy, dx = self.HEADINGS[heading]
+            elif action == 'move_backward':
+                heading = (heading + 2) % 4
+                dy, dx = self.HEADINGS[heading]
+            elif action == 'move_right':
+                heading = (heading + 1) % 4
+                dy, dx = self.HEADINGS[heading]
+            elif action == 'move_left':
+                heading = (heading - 1 + 4) % 4
+                dy, dx = self.HEADINGS[heading]
+
+            new_x, new_y = x + dx * RADIUS, y + dy * RADIUS
+
+            if 0 <= new_x < self.dish.size and 0 <= new_y < self.dish.size:
+                possible_position_dict[action] = (new_x, new_y)
+            else:
+                possible_position_dict[action] = None  # or "invalid"
+
+        return possible_position_dict
 
     def update_assay_agents(self,agent_dict, agent_input, new_q):
         agent_input = np.array(agent_input, dtype=np.int8)
+        new_q =  (new_q/self.max_q) * OUTPUT_SIZE
         clipped_q = int(round(np.clip(new_q, 0, OUTPUT_SIZE)))
         new_q_label = np.zeros(OUTPUT_SIZE, dtype=np.int8)
         new_q_idx = np.random.randint(0,OUTPUT_SIZE, size = (clipped_q))
@@ -782,6 +841,11 @@ class Assay:
         if self.debug_mode:
             print("Cannot pretrain agents in random/debug mode.")
             return
+        for i, agent_dict in enumerate(self.agents):
+            for s in range(100):
+                agent_dict['agent'].reset_state(training=True)
+                agent_dict['agent'].reset_state()
+
 
         for i, agent_dict in enumerate(self.agents):
             agent_dict['agent'].reset_state()
@@ -810,28 +874,24 @@ class Assay:
                     # Try different headings
                     agent_dict['heading'] = step % 4
                 
-                    old_stimuli,radius_layers = self.dish.get_stimuli(
-                        agent_dict['pos'], 
-                        shape=self.sensory_shape, 
-                        radius=self.sensory_radius, 
-                        mode=self.sensory_mode
-                    )
-                    old_reward = self.calculate_reward(old_stimuli)
 
-                    agent_input_binary, action_value, is_exploration = self.get_agent_action(agent_dict)
+                    old_reward = self.calculate_reward(agent_dict['pos'])
+
+                    agent_input_binary, action_value, is_exploration,_ = self.get_agent_action(agent_dict, exploration_rate = 0.5)
                     agent_action, q_value = action_value
                     agent_input_binary = np.append(agent_input_binary, self.ACTIONS_BIN[agent_action])
 
-                    self.update_agent_position_and_heading(agent_dict,agent_action)
-                    next_agent_input_binary, next_q_action_value,_ = self.get_agent_action(agent_dict)
+                    possible_position_dict = self.get_possible_positions(agent_dict)
+                    # print(possible_position_dict)
+                    if possible_position_dict[agent_action] is not None:
+                        agent_dict['pos'] = possible_position_dict[agent_action]
+                    next_agent_input_binary, next_q_action_value,_, _  = self.get_agent_action(agent_dict)
                     next_agent_action, next_q_value = next_q_action_value
-                    new_stimuli,radius_layers = self.dish.get_stimuli(
-                        agent_dict['pos'], 
-                        shape=self.sensory_shape, 
-                        radius=self.sensory_radius, 
-                        mode=self.sensory_mode
-                    )
-                    new_reward = self.calculate_reward(new_stimuli)
+
+                    new_reward = self.calculate_reward(agent_dict['pos'])
+                    # print(possible_position_dict)
+                    # possible_position_dict = {key: self.calculate_reward(value) if value is not None else 0.0 for key, value in possible_position_dict.items()}
+
                     exploration_bonus = 0.1 if is_exploration else 0.0
                     # Get sensory input at this position
                     reward_received = (((new_reward - old_reward)*2) + new_reward ) * (1+ exploration_bonus)
@@ -850,7 +910,8 @@ class Assay:
 
 
     def run_step(self, steps):
-        # steps += self.n
+        steps += self.n
+        self.steps_excluding_exploitation = np.array([steps]*self.num_agents)
         for s in range(1, steps):
             # if s >= self.history.shape[0]:
             #     print("Warning: History limit reached, assay memory full.")
@@ -858,35 +919,47 @@ class Assay:
             self.step = s
             # is_exploration = False
 
+            step_performance = np.zeros(self.num_agents, dtype=np.float32)
             for i, agent_dict in enumerate(self.agents):
-                # Get sensory input at this position
-                # stimuli_input, radius_layers = self.dish.get_stimuli(
-                #     agent_dict['pos'], 
-                #     shape=self.sensory_shape, 
-                #     radius=self.sensory_radius, 
-                #     mode=self.sensory_mode
-                # )
-                old_stimuli,radius_layers = self.dish.get_stimuli(
-                    agent_dict['pos'], 
-                    shape=self.sensory_shape, 
-                    radius=self.sensory_radius, 
-                    mode=self.sensory_mode
-                )
-                old_reward = self.calculate_reward(old_stimuli)
 
-                agent_input_binary, action_value, is_exploration = self.get_agent_action(agent_dict)
+                old_reward = self.calculate_reward(agent_dict['pos'])
+
+                agent_input_binary, action_value, is_exploration, action_q_values_prediction_dict = self.get_agent_action(agent_dict)
                 agent_action, q_value = action_value
                 agent_input_binary = np.append(agent_input_binary, self.ACTIONS_BIN[agent_action])
-                self.update_agent_position_and_heading(agent_dict,agent_action)
-                next_agent_input_binary, next_q_action_value,_ = self.get_agent_action(agent_dict)
+                possible_position_dict = self.get_possible_positions(agent_dict)
+                if possible_position_dict[agent_action] is not None:
+                    agent_dict['pos'] = possible_position_dict[agent_action]
+                # self.update_agent_position_and_heading(agent_dict,agent_action)
+                
+
+                next_agent_input_binary, next_q_action_value,_,_ = self.get_agent_action(agent_dict)
                 next_agent_action, next_q_value = next_q_action_value
-                new_stimuli,radius_layers = self.dish.get_stimuli(
-                    agent_dict['pos'], 
-                    shape=self.sensory_shape, 
-                    radius=self.sensory_radius, 
-                    mode=self.sensory_mode
-                )
-                new_reward = self.calculate_reward(new_stimuli)
+
+                new_reward = self.calculate_reward(agent_dict['pos'])
+                possible_position_dict = {key: self.calculate_reward(value) if value is not None else 0.0 for key, value in possible_position_dict.items()}
+                if not is_exploration:
+                    actual_x = [possible_position_dict[item] for item in self.ACTIONS]
+
+                    agent_x = [action_q_values_prediction_dict[item] for item in self.ACTIONS]
+                    # Check for edge cases before calculating Kendall's tau
+                    if np.var(actual_x) == 0 and np.var(agent_x) == 0:
+                        step_tau = 1.0  # Perfect correlation when both are constant
+                    elif np.var(actual_x) == 0 or np.var(agent_x) == 0:
+                        step_tau = 0.0  # No correlation when one is constant
+                    else:
+                        step_tau = round(kendalltau(actual_x, agent_x)[0], 4) 
+                    step_tau = 0.0 if np.isnan(step_tau) else step_tau
+                    # Update cumulative performance
+                    self.agent_performance[i] += step_tau
+                    self.exploitation_step_counts[i] += 1
+                    
+                    # Store step-specific performance
+                    step_performance[i] = step_tau
+                else:
+                    self.steps_excluding_exploitation[i] -= 1
+                    step_performance[i] = np.nan
+
                 exploration_bonus = 0.1 if is_exploration else 0.0
                 # Get sensory input at this position
                 reward_received = (((new_reward - old_reward)*2) + new_reward ) * (1+ exploration_bonus)
@@ -902,7 +975,7 @@ class Assay:
                 #     state=agent_input_binary,
                 #     q_value=new_q,
                 # )
-
+                self.agent_performance_history[self.step, :] = step_performance
                 self.history[self.step, i, 0] = agent_dict['pos'][0]
                 self.history[self.step, i, 1] = agent_dict['pos'][1]
                 
@@ -925,6 +998,7 @@ class Assay:
                     #     self.meta_history[self.step, i, 7+c] = getattr(agent_instance, self.agent_archs.C_types_names[c])
                 # if s % self.replay_frequency == 0 and self.experience_buffers[i].size() > self.batch_size:
                 #     self.replay_learn_from_memory(agent_dict, i)
+
             if s >= self.history.shape[0]:
                 print("Warning: History limit reached, assay memory full.")
                 break
@@ -1010,6 +1084,8 @@ class Assay:
         agent_dfs = []
         for a in range(self.num_agents):
             agent_names.append(f"Agent_{a}")
+            agent_performance_history_filled = self.agent_performance_history[:to_step, a]
+            agent_performance_history_filled = pd.Series(agent_performance_history_filled).interpolate(method='spline', order=3).fillna(0.0).values
             df = pd.DataFrame({
                 'Time': np.arange(to_step),
                 'stimuli0': self.meta_history[:to_step, a, 0],
@@ -1020,7 +1096,8 @@ class Assay:
                 'neuronal2': self.meta_history[:to_step, a, 5],
                 'Experience States': self.meta_history[:to_step, a, 6],
                 'pos_x': self.history[:to_step, a, 0],
-                'pos_y': self.history[:to_step, a, 1]
+                'pos_y': self.history[:to_step, a, 1],
+                'performance': self.agent_performance_history[:to_step, a]
             })
             # if not self.debug_mode:
             #     for c in range(self.num_learning_types):

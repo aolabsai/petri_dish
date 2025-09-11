@@ -200,11 +200,12 @@ else:
             agent_names, agent_dfs = agent_data[0], agent_data[1]
             
             full_data = pd.concat([df.assign(Agent=name) for df, name in zip(agent_dfs, agent_names)], ignore_index=True)
+
             grid_size = env_data[0].shape[0]
 
             required_cols = {'Time', 'Experience States', 'pos_x', 'pos_y', 'Agent',
                             'stimuli0', 'stimuli1', 'stimuli2',
-                            'neuronal0', 'neuronal1', 'neuronal2'}
+                            'neuronal0', 'neuronal1', 'neuronal2', 'performance'}
             
             # learning_event_cols = [col for col in full_data.columns if col in ['Pleasure', 'Pain']]
                 
@@ -344,6 +345,96 @@ else:
                 ).interactive()
                 st.altair_chart(states_chart, use_container_width=True)
 
+
+        # Agent Performance Bar Chart
+        st.header("Agent Performance Analysis")
+        with st.expander("Agent Performance (Kendall's Tau Correlation)", expanded=True):
+            st.markdown("""
+            This chart shows each agent's performance based on Kendall's tau correlation between 
+            actual reward values and predicted Q-values. Higher values indicate better prediction accuracy.
+            """)
+            
+            if "assay_saved" in st.session_state:
+                # Get the agent performance data
+                performance_data = st.session_state.assay.agent_performance
+                steps_excluding_exploitation = st.session_state.assay.steps_excluding_exploitation
+                performance_data = performance_data/ (steps_excluding_exploitation)
+                
+                # Create a DataFrame for the bar chart
+                performance_df = pd.DataFrame({
+                    'Agent': [f'Agent_{i}' for i in range(len(performance_data))],
+                    'Performance': performance_data
+                })
+                
+                # Filter to show only selected agents
+                if selected_agents:
+                    performance_df = performance_df[performance_df['Agent'].isin(selected_agents)]
+                
+                # Create the bar chart using Altair
+                performance_chart = alt.Chart(performance_df).mark_bar().encode(
+                    x=alt.X('Agent:N', sort=alt.EncodingSortField(field='Performance', op='mean', order='descending')),
+                    y=alt.Y('Performance:Q', axis=alt.Axis(title='Kendall Tau Correlation')),
+                    color=alt.Color('Agent:N', scale=color_scale, legend=None),
+                    tooltip=['Agent:N', 'Performance:Q']
+                ).properties(
+                    width=600,
+                    height=400
+                )
+                
+                st.altair_chart(performance_chart, use_container_width=True)
+                
+                # Add some statistics
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Best Performance", f"{performance_df['Performance'].max():.4f}")
+                with col2:
+                    st.metric("Average Performance", f"{performance_df['Performance'].mean():.4f}")
+                with col3:
+                    st.metric("Worst Performance", f"{performance_df['Performance'].min():.4f}")
+                
+                # Option to show raw performance data
+                if st.checkbox("Show Performance Data Table"):
+                    st.dataframe(performance_df.sort_values('Performance', ascending=False))
+            
+            else:
+                st.info("Run a simulation to see agent performance metrics.")
+        # Performance Over Time Line Chart (add this to your Streamlit visualization section)
+        with st.expander("Performance Over Time", expanded=True):
+            st.markdown("""
+            This chart shows how each agent's prediction accuracy (Kendall's tau correlation) 
+            evolves over the simulation steps.
+            """)
+            
+            # Create performance over time chart
+            performance_time_chart = alt.Chart(combined_data).mark_line().encode(
+                x=alt.X('Time', axis=alt.Axis(title='Simulation Step')),
+                y=alt.Y('performance', axis=alt.Axis(title='Kendall Tau Correlation')),
+                color=alt.Color('Agent', scale=color_scale, legend=alt.Legend(title="Agents")),
+                tooltip=['Time', 'performance', 'Agent']
+            ).interactive()
+            
+            st.altair_chart(performance_time_chart, use_container_width=True)
+            
+            # Add smoothed version with moving average
+            if st.checkbox("Show smoothed performance (moving average)"):
+                # Calculate 10-step moving average
+                combined_data_smooth = combined_data.copy()
+                for agent in selected_agents:
+                    agent_mask = combined_data_smooth['Agent'] == agent
+                    combined_data_smooth.loc[agent_mask, 'Performance_Smooth'] = (
+                        combined_data_smooth.loc[agent_mask, 'performance']
+                        .rolling(window=10, min_periods=1)
+                        .mean()
+                    )
+                
+                smooth_chart = alt.Chart(combined_data_smooth).mark_line(strokeWidth=3).encode(
+                    x=alt.X('Time', axis=alt.Axis(title='Simulation Step')),
+                    y=alt.Y('Performance_Smooth', axis=alt.Axis(title='Smoothed Performance')),
+                    color=alt.Color('Agent', scale=color_scale, legend=alt.Legend(title="Agents")),
+                    tooltip=['Time', 'Performance_Smooth', 'Agent']
+                ).interactive()
+                
+                st.altair_chart(smooth_chart, use_container_width=True)
         if st.checkbox("Show Raw Data"):
             st.dataframe(combined_data)
     else:
